@@ -229,6 +229,8 @@ table.data tbody tr:hover td.sticky-col{background:#f8fbff}
 .field.full{grid-column:1/-1}
 .check{display:flex;align-items:center;gap:8px;height:37px;font-size:12.5px;font-weight:600;color:var(--text-2)}
 .check input{width:15px;height:15px;accent-color:var(--primary)}
+.module-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 14px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:#fbfdff}
+.module-grid .check{height:26px;font-size:12px;font-weight:600}
 .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
 .form-error{display:none;background:var(--red-soft);color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:600;margin-bottom:14px}
 .form-error.show{display:block}

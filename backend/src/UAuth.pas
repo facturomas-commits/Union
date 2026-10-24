@@ -3,7 +3,7 @@ unit UAuth;
 interface
 
 uses
-  System.SysUtils, System.JSON, System.Hash,
+  System.SysUtils, System.JSON, System.Hash, System.Generics.Collections,
   Horse, UHttp;
 
 type
@@ -15,15 +15,19 @@ type
     FullName: string;
     Role: string;
     MustChangePassword: Boolean;
+    Modules: TArray<string>;
     function IsSuper: Boolean;
     function IsAdmin: Boolean;
     function CanWrite: Boolean;
+    function HasModule(const AModule: string): Boolean;
+    function HasAnyModule(const AModules: array of string): Boolean;
   end;
 
 var
   GAuth: TAuthInfo;
 
 function AuthInfo: TAuthInfo;
+function DefaultModules(const ARole: string): TArray<string>;
 procedure AuthMiddleware(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 
 procedure LoginHandler(Req: THorseRequest; Res: THorseResponse; Next: TProc);
@@ -63,6 +67,71 @@ function TAuthInfo.CanWrite: Boolean;
 begin
   Result := (Role = 'superadmin') or (Role = 'admin') or
             (Role = 'supervisor') or (Role = 'operator');
+end;
+
+function TAuthInfo.HasModule(const AModule: string): Boolean;
+var
+  LModule: string;
+begin
+  for LModule in Modules do
+    if LModule = AModule then
+      Exit(True);
+  Result := False;
+end;
+
+function TAuthInfo.HasAnyModule(const AModules: array of string): Boolean;
+var
+  LModule: string;
+begin
+  for LModule in AModules do
+    if HasModule(LModule) then
+      Exit(True);
+  Result := False;
+end;
+
+const
+  ALL_MODULES: array[0..11] of string = (
+    'dashboard', 'schedules', 'colectivos', 'camion',
+    'fuel', 'expenses', 'maintenance', 'masters',
+    'reports', 'audit', 'users', 'settings'
+  );
+  SUPERVISOR_MODULES: array[0..8] of string = (
+    'dashboard', 'schedules', 'colectivos', 'camion',
+    'fuel', 'expenses', 'maintenance', 'masters', 'reports'
+  );
+  OPERATOR_MODULES: array[0..7] of string = (
+    'dashboard', 'schedules', 'colectivos', 'camion',
+    'fuel', 'expenses', 'maintenance', 'reports'
+  );
+  VIEWER_MODULES: array[0..7] of string = (
+    'dashboard', 'schedules', 'colectivos', 'camion',
+    'fuel', 'expenses', 'maintenance', 'reports'
+  );
+
+function DefaultModules(const ARole: string): TArray<string>;
+var
+  I: Integer;
+begin
+  if (ARole = 'superadmin') or (ARole = 'admin') then
+  begin
+    SetLength(Result, Length(ALL_MODULES));
+    for I := 0 to High(ALL_MODULES) do Result[I] := ALL_MODULES[I];
+  end
+  else if ARole = 'supervisor' then
+  begin
+    SetLength(Result, Length(SUPERVISOR_MODULES));
+    for I := 0 to High(SUPERVISOR_MODULES) do Result[I] := SUPERVISOR_MODULES[I];
+  end
+  else if ARole = 'operator' then
+  begin
+    SetLength(Result, Length(OPERATOR_MODULES));
+    for I := 0 to High(OPERATOR_MODULES) do Result[I] := OPERATOR_MODULES[I];
+  end
+  else
+  begin
+    SetLength(Result, Length(VIEWER_MODULES));
+    for I := 0 to High(VIEWER_MODULES) do Result[I] := VIEWER_MODULES[I];
+  end;
 end;
 
 function AuthInfo: TAuthInfo;
@@ -112,7 +181,20 @@ begin
   end;
 end;
 
+function ModulesAsJson: TJSONArray;
+var
+  LModule: string;
+begin
+  Result := TJSONArray.Create;
+  for LModule in GAuth.Modules do
+    Result.Add(LModule);
+end;
+
 procedure FillAuthFromJson(AObj: TJSONObject);
+var
+  LModules: TJSONValue;
+  LArr: TJSONArray;
+  I: Integer;
 begin
   GAuth.Authenticated := True;
   GAuth.UserId := GetInt(AObj, 'id', 0);
@@ -121,6 +203,70 @@ begin
   GAuth.FullName := GetStr(AObj, 'full_name');
   GAuth.Role := GetStr(AObj, 'role', 'viewer');
   GAuth.MustChangePassword := GetBool(AObj, 'must_change_password', False);
+
+  LModules := AObj.FindValue('allowed_modules');
+  if Assigned(LModules) and (LModules is TJSONArray) then
+  begin
+    LArr := TJSONArray(LModules);
+    SetLength(GAuth.Modules, LArr.Count);
+    for I := 0 to LArr.Count - 1 do
+      GAuth.Modules[I] := LArr.Items[I].Value;
+  end
+  else
+    GAuth.Modules := DefaultModules(GAuth.Role);
+end;
+
+function PathModuleAllowed(const APath, AMethod: string): Boolean;
+var
+  LPath, LMethod: string;
+begin
+  LPath := APath.ToLower;
+  LMethod := AMethod.ToUpper;
+
+  if LPath = '/api/reports/latest' then Exit(True);
+
+  if LPath.StartsWith('/api/dashboard') then
+    Exit(GAuth.HasModule('dashboard'));
+
+  if LPath.StartsWith('/api/schedules') then
+  begin
+    if LMethod = 'GET' then
+      Exit(GAuth.HasAnyModule(['schedules', 'colectivos']));
+    Exit(GAuth.HasModule('schedules'));
+  end;
+
+  if LPath.StartsWith('/api/services') then
+  begin
+    if LMethod = 'GET' then
+      Exit(GAuth.HasAnyModule(['colectivos', 'expenses', 'fuel', 'reports']));
+    Exit(GAuth.HasModule('colectivos'));
+  end;
+
+  if LPath.StartsWith('/api/fuel') then Exit(GAuth.HasModule('fuel'));
+  if LPath.StartsWith('/api/expenses') then Exit(GAuth.HasModule('expenses'));
+  if LPath.StartsWith('/api/maintenance') then Exit(GAuth.HasModule('maintenance'));
+  if LPath.StartsWith('/api/freight') then Exit(GAuth.HasModule('camion'));
+
+  if LPath.StartsWith('/api/reports/audit') then Exit(GAuth.HasModule('audit'));
+  if LPath.StartsWith('/api/reports') then Exit(GAuth.HasModule('reports'));
+
+  if LPath.StartsWith('/api/vehicles') or LPath.StartsWith('/api/employees') or
+     LPath.StartsWith('/api/routes') then
+  begin
+    if LMethod = 'GET' then Exit(True);
+    Exit(GAuth.HasModule('masters'));
+  end;
+
+  if LPath.StartsWith('/api/users') or LPath.StartsWith('/api/companies') then
+    Exit(GAuth.HasModule('users'));
+
+  if LPath.StartsWith('/api/settings') then
+  begin
+    if LMethod = 'GET' then Exit(True);
+    Exit(GAuth.HasModule('settings'));
+  end;
+
+  Result := True;
 end;
 
 procedure AuthMiddleware(Req: THorseRequest; Res: THorseResponse; Next: TProc);
@@ -152,7 +298,8 @@ begin
     'select json_build_object(' +
     '  ''id'', u.id, ''company_id'', u.company_id, ''username'', u.username,' +
     '  ''full_name'', u.full_name, ''role'', u.role,' +
-    '  ''must_change_password'', u.must_change_password) ' +
+    '  ''must_change_password'', u.must_change_password,' +
+    '  ''allowed_modules'', u.allowed_modules) ' +
     'from sessions s join users u on u.id = s.user_id ' +
     'where s.token_hash = :p0 and s.expires_at > now() and u.active',
     [LHash]);
@@ -174,6 +321,11 @@ begin
   try
     GAuth := Default(TAuthInfo);
     FillAuthFromJson(TJSONObject(LValue));
+    if not PathModuleAllowed(LPath, Req.RawWebRequest.Method) then
+    begin
+      SendError(Res, 'No tiene acceso a este módulo', 403);
+      raise EHorseCallbackInterrupted.Create;
+    end;
     Next;
   finally
     LValue.Free;
@@ -211,7 +363,8 @@ begin
       'select json_build_object(' +
       '  ''id'', u.id, ''company_id'', u.company_id, ''username'', u.username,' +
       '  ''full_name'', u.full_name, ''role'', u.role,' +
-      '  ''must_change_password'', u.must_change_password) ' +
+      '  ''must_change_password'', u.must_change_password,' +
+      '  ''allowed_modules'', u.allowed_modules) ' +
       'from users u where u.username = :p0 and u.active ' +
       'and u.password_hash = crypt(:p1, u.password_hash)',
       [LUsername, LPassword]);
@@ -254,6 +407,7 @@ begin
       LResp.AddPair('expires_in', TJSONNumber.Create(LSeconds));
       LResp.AddPair('user', TJSONObject(LValue.Clone));
       LResp.AddPair('must_change_password', TJSONBool.Create(GAuth.MustChangePassword));
+      LResp.AddPair('modules', ModulesAsJson);
       SetSessionCookie(Res, LToken);
       SendJsonText(Res, LResp.ToJSON, 200);
     finally
@@ -290,6 +444,7 @@ end;
 procedure MeHandler(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LJson: string;
+  LValue: TJSONValue;
 begin
   try
     LJson := TDB.Q(
@@ -299,7 +454,15 @@ begin
       '  ''settings'', (select coalesce(json_object_agg(key, value), ''{}''::json) from settings where company_id = :p1)' +
       ')',
       [GAuth.UserId, GAuth.CompanyId]);
-    SendJsonText(Res, LJson, 200);
+    LValue := TJSONObject.ParseJSONValue(LJson);
+    if Assigned(LValue) and (LValue is TJSONObject) then
+    begin
+      TJSONObject(LValue).AddPair('modules', ModulesAsJson);
+      SendJsonText(Res, TJSONObject(LValue).ToJSON, 200);
+    end
+    else
+      SendJsonText(Res, LJson, 200);
+    LValue.Free;
   except
     on E: Exception do
       SendError(Res, E.Message, 500);

@@ -413,7 +413,6 @@ end;
 procedure AuditHandler(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var LCompany, LLimit: Integer;
 begin
-  if not RequireAdmin(Res) then Exit;
   try
     LCompany := EffectiveCompany(Req);
     LLimit := QueryInt(Req, 'limit', 200);

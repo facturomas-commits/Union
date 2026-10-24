@@ -1,5 +1,6 @@
 import { api, ApiError } from './api.js';
-import { state, canWrite, isAdmin, isSuper } from './store.js';
+import { state, canWrite, isAdmin, isSuper, hasModule } from './store.js';
+import { VIEW_MODULE, MODULES, defaultModules } from './modules.js';
 import { icon, initials, roleLabel, toast, openModal, formData } from './ui.js';
 import { renderLogin } from './views/login.js';
 
@@ -29,26 +30,30 @@ const views = {
 
 const NAV = [
   { group:'Operación', items:[
-    { id:'dashboard', label:'Dashboard', icon:'dashboard' },
-    { id:'schedules', label:'Servicios', icon:'calendar' },
-    { id:'colectivos', label:'Colectivos', icon:'bus' },
-    { id:'freight', label:'Camión', icon:'truck' },
+    { id:'dashboard', label:'Dashboard', icon:'dashboard', module:'dashboard' },
+    { id:'schedules', label:'Servicios', icon:'calendar', module:'schedules' },
+    { id:'colectivos', label:'Colectivos', icon:'bus', module:'colectivos' },
+    { id:'freight', label:'Camión', icon:'truck', module:'camion' },
   ]},
   { group:'Flota', items:[
-    { id:'fuel', label:'Combustible', icon:'fuel' },
-    { id:'expenses', label:'Gastos', icon:'receipt' },
-    { id:'maintenance', label:'Mantenimiento', icon:'wrench' },
-    { id:'masters', label:'Maestros', icon:'settings' },
+    { id:'fuel', label:'Combustible', icon:'fuel', module:'fuel' },
+    { id:'expenses', label:'Gastos', icon:'receipt', module:'expenses' },
+    { id:'maintenance', label:'Mantenimiento', icon:'wrench', module:'maintenance' },
+    { id:'masters', label:'Maestros', icon:'settings', module:'masters' },
   ]},
   { group:'Análisis', items:[
-    { id:'reports', label:'Reportes', icon:'chart' },
-    { id:'audit', label:'Auditoría', icon:'audit', admin:true },
+    { id:'reports', label:'Reportes', icon:'chart', module:'reports' },
+    { id:'audit', label:'Auditoría', icon:'audit', module:'audit' },
   ]},
 ];
 
+function allowedNavItems(){
+  return NAV.flatMap(g=>g.items).filter(it=>hasModule(it.module));
+}
+
 function navHtml(current){
   return NAV.map(g=>{
-    const items=g.items.filter(it=>!it.admin || isAdmin());
+    const items=g.items.filter(it=>hasModule(it.module));
     if (!items.length) return '';
     return `<div class="nav-group">${g.group}</div>` + items.map(it=>{
       const active = it.id===current ? ' active' : '';
@@ -99,7 +104,13 @@ function currentRoute(){
   const [path] = raw.split('?');
   let id = path || 'dashboard';
   if (id === 'services') id = 'colectivos';
-  return views[id] ? id : 'dashboard';
+  if (views[id] && hasModule(VIEW_MODULE[id])) return id;
+  const first = allowedNavItems()[0];
+  return first ? first.id : 'no-access';
+}
+
+function renderNoAccess(content){
+  content.innerHTML = `<div class="card">${ui.emptyState('Sin módulos asignados','Su usuario no tiene acceso a ningún módulo. Contacte al administrador.','lock')}</div>`;
 }
 
 async function renderCurrent(){
@@ -111,12 +122,20 @@ async function renderCurrent(){
   } else {
     document.getElementById('nav').innerHTML=navHtml(id);
   }
+  const content=document.getElementById('view');
+  content.innerHTML='';
+  if (id==='no-access'){
+    document.getElementById('ptitle').textContent='Acceso restringido';
+    document.getElementById('psub').textContent='Sin módulos asignados';
+    document.title='Acceso restringido · UNION';
+    renderNoAccess(content);
+    return;
+  }
+  if (location.hash !== '#/'+id) history.replaceState(null,'','#/'+id);
   const view=views[id];
   document.getElementById('ptitle').textContent=view.title || id;
   document.getElementById('psub').textContent=view.subtitle || '';
   document.title=`${view.title || 'UNIÓN'} · UNION`;
-  const content=document.getElementById('view');
-  content.innerHTML='';
   try{
     await view.render(content);
   }catch(ex){
@@ -161,7 +180,7 @@ function changePassword(){
 
 function showLogin(){
   if (document.querySelector('#login-form')) return;
-  state.user=null; state.company=null; state.settings={};
+  state.user=null; state.company=null; state.settings={}; state.modules=[];
   const app=document.getElementById('app');
   renderLogin(app, async (data)=>{
     await loadSession(data);
@@ -176,11 +195,13 @@ async function loadSession(loginData){
     state.user=me.user;
     state.company=me.company;
     state.settings=me.settings||{};
+    state.modules=me.modules||[];
   }catch(e){
     if (loginData && loginData.user){
       state.user=loginData.user;
       state.company={name:'Empresa'};
       state.settings={};
+      state.modules=loginData.modules||defaultModules(loginData.user.role);
     } else throw e;
   }
   try{
@@ -194,6 +215,7 @@ async function boot(){
     state.user=me.user;
     state.company=me.company;
     state.settings=me.settings||{};
+    state.modules=me.modules||[];
     try{ state.latest=await api.latest(); }catch(e){ state.latest=null; }
     if (!location.hash) history.replaceState(null,'','#/dashboard');
     await renderCurrent();

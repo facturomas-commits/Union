@@ -1,13 +1,14 @@
 import { api } from '../api.js';
-import { state, canWrite, isAdmin, isSuper } from '../store.js';
+import { state, canWrite, isAdmin, isSuper, hasModule } from '../store.js';
+import { MODULES, defaultModules } from '../modules.js';
 import * as ui from '../ui.js';
 
 const TABS=[
-  {id:'vehicles',label:'Vehículos'},
-  {id:'employees',label:'Empleados'},
-  {id:'routes',label:'Rutas'},
-  {id:'users',label:'Usuarios',admin:true},
-  {id:'settings',label:'Configuración',admin:true},
+  {id:'vehicles',label:'Vehículos',module:'masters'},
+  {id:'employees',label:'Empleados',module:'masters'},
+  {id:'routes',label:'Rutas',module:'masters'},
+  {id:'users',label:'Usuarios',module:'users',admin:true},
+  {id:'settings',label:'Configuración',module:'settings',admin:true},
 ];
 
 export default {
@@ -21,7 +22,7 @@ export default {
         <div class="actions" id="tab-actions"></div>
       </div>
       <div class="card">
-        <div class="tabs" id="tabs">${TABS.filter(t=>!t.admin||isAdmin()).map(t=>`<button class="tab ${t.id===tab?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('')}</div>
+        <div class="tabs" id="tabs">${TABS.filter(t=>hasModule(t.module) && (!t.admin||isAdmin())).map(t=>`<button class="tab ${t.id===tab?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('')}</div>
         <div id="pane"></div>
       </div>`;
     const pane=root.querySelector('#pane');
@@ -194,10 +195,11 @@ async function usersTab(pane,actions,reload){
   const rows=await api.get('/users');
   actions.innerHTML=`<button class="btn" id="add">${ui.icon('plus')} Nuevo usuario</button>`;
   pane.innerHTML=`<div class="table-wrap"><table class="data">
-    <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Email</th><th>Último ingreso</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Módulos</th><th>Email</th><th>Último ingreso</th><th>Estado</th><th></th></tr></thead>
     <tbody>${rows.map(u=>`<tr>
       <td><strong>${ui.esc(u.username)}</strong></td><td>${ui.esc(u.full_name)}</td>
       <td><span class="badge ${u.role==='viewer'?'gray':(u.role==='operator'?'blue':'purple')}">${ui.roleLabel(u.role)}</span></td>
+      <td>${Array.isArray(u.allowed_modules)?`<span class="badge blue">${u.allowed_modules.length} módulos</span>`:'<span class="badge gray">Según rol</span>'}</td>
       <td>${ui.esc(u.email||'—')}</td><td>${u.last_login?ui.dateTime(u.last_login):'—'}</td>
       <td>${u.active?'<span class="badge green">Activo</span>':'<span class="badge gray">Inactivo</span>'}</td>
       <td><div class="table-actions">
@@ -215,6 +217,7 @@ function userForm(u,reload){
   const isEdit=!!u,d=u||{};
   const roles=[['operator','Operador'],['supervisor','Supervisor'],['admin','Administrador'],['viewer','Consulta']];
   if(isSuper()) roles.push(['superadmin','Superadmin']);
+  const selected=Array.isArray(d.allowed_modules)?d.allowed_modules:defaultModules(d.role||'operator');
   ui.openModal({
     title:isEdit?'Editar usuario':'Nuevo usuario',
     subtitle:isEdit?'Deje la contraseña vacía para conservarla.':'La contraseña es obligatoria.',
@@ -226,10 +229,22 @@ function userForm(u,reload){
       <div class="field"><label>Contraseña ${isEdit?'(opcional)':'*'}</label><input name="password" type="password" minlength="8" ${isEdit?'':'required'}></div>
       <div class="field"><label>Activo</label><label class="check"><input type="checkbox" name="active" ${d.active!==false?'checked':''}> Sí</label></div>
       <div class="field"><label>Cambiar clave al ingresar</label><label class="check"><input type="checkbox" name="must_change_password" ${d.must_change_password?'checked':''}> Sí</label></div>
+      <div class="field full"><label>Módulos permitidos</label>
+        <div class="module-grid" id="module-grid">
+          ${MODULES.map(m=>`<label class="check"><input type="checkbox" name="module" value="${m.id}" ${selected.includes(m.id)?'checked':''}> ${m.label}</label>`).join('')}
+        </div>
+        <div class="help">Los módulos no tildados no aparecen en el menú y la API los bloquea. <button type="button" class="btn btn-sm btn-secondary" id="reset-modules" style="margin-top:6px">Restablecer según rol</button></div>
+      </div>
     </div>`,
+    onReady(form){
+      const setModules=(role)=>form.querySelectorAll('input[name=module]').forEach(x=>{ x.checked=defaultModules(role).includes(x.value); });
+      form.querySelector('#reset-modules').onclick=()=>setModules(form.elements.role.value);
+      form.elements.role.addEventListener('change',()=>{ if(!isEdit) setModules(form.elements.role.value); });
+    },
     async onSubmit(form,close){
       const p={full_name:form.elements.full_name.value,email:form.elements.email.value,role:form.elements.role.value,
-        active:ui.boolVal(form,'active'),must_change_password:ui.boolVal(form,'must_change_password')};
+        active:ui.boolVal(form,'active'),must_change_password:ui.boolVal(form,'must_change_password'),
+        allowed_modules:[...form.querySelectorAll('input[name=module]:checked')].map(x=>x.value)};
       const pass=form.elements.password.value;
       if(!p.full_name) throw new Error('Ingrese el nombre');
       if(!isEdit){ p.username=form.elements.username.value; if(!p.username) throw new Error('Ingrese el usuario'); }

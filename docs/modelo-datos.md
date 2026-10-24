@@ -33,7 +33,7 @@ freight_trips
 | Tabla | Propósito | Campos clave |
 |---|---|---|
 | `companies` | Empresa | `name`, `legal_name`, `cuit` |
-| `users` | Usuarios del sistema | `username`, `password_hash` (bcrypt), `role`, `active` |
+| `users` | Usuarios del sistema | `username`, `password_hash` (bcrypt), `role`, `allowed_modules` (JSONB), `active` |
 | `sessions` | Sesiones activas | `token_hash` (SHA-256), `expires_at` |
 | `audit_log` | Trazabilidad | `action`, `entity`, `entity_id`, `details` (JSONB), `ip` |
 | `settings` | Configuración por empresa | `maintenance_alert_days`, `vat_pct`, `commission_pct` |

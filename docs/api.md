@@ -9,10 +9,12 @@ Todas las respuestas son JSON. Errores: `{ "error": "mensaje" }`.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/auth/login` | `{username, password}` → token + usuario |
+| POST | `/auth/login` | `{username, password}` → token, usuario y `modules` |
 | POST | `/auth/logout` | Cierra sesión |
-| GET | `/auth/me` | Usuario, empresa y configuración |
+| GET | `/auth/me` | Usuario, empresa, configuración y `modules` |
 | POST | `/auth/change-password` | `{current_password, new_password}` |
+
+Los endpoints de cada módulo verifican `allowed_modules`. Si el módulo no está permitido, responden **403**.
 
 ## Maestros
 
@@ -25,10 +27,11 @@ Todas las respuestas son JSON. Errores: `{ "error": "mensaje" }`.
 | GET/POST | `/routes` |
 | GET/PUT/DELETE | `/routes/:id` |
 | GET/POST | `/users` (admin) |
-| PUT/DELETE | `/users/:id` (admin) |
-| GET/POST | `/companies` (admin/super) |
+| PUT/DELETE | `/users/:id` (admin) || GET/POST | `/companies` (admin/super) |
 | PUT/DELETE | `/companies/:id` (super) |
 | GET/POST | `/settings` (admin) |
+
+`POST/PUT /users` acepta `allowed_modules: ["dashboard","colectivos", ...]`. Si se envía `null` o se omite, se usan los módulos por defecto del rol.
 
 ## Programación de servicios
 

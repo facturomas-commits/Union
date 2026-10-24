@@ -69,6 +69,18 @@ begin
             (ARole = 'supervisor') or (ARole = 'operator') or (ARole = 'viewer');
 end;
 
+function ModulesJson(AObj: TJSONObject): string;
+var
+  LValue: TJSONValue;
+begin
+  Result := '';
+  if not Has(AObj, 'allowed_modules') then
+    Exit;
+  LValue := AObj.FindValue('allowed_modules');
+  if Assigned(LValue) and (LValue is TJSONArray) then
+    Result := TJSONArray(LValue).ToJSON;
+end;
+
 procedure HealthHandler(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 begin
   SendJsonText(Res, '{"status":"ok","service":"union-backend","version":"1.0"}', 200);
@@ -330,7 +342,7 @@ end;
 procedure CreateUser(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr, LUsername, LFullName, LRole, LPassword, LHash: string;
+  LErr, LUsername, LFullName, LRole, LPassword, LHash, LModules: string;
   LCompany, LId: Integer;
   LActive: Boolean;
 begin
@@ -356,11 +368,12 @@ begin
     begin SendError(Res, 'Empresa inválida', 400); Exit; end;
 
     LHash := TDB.Q('select crypt(:p0, gen_salt(''bf'', 12))', [LPassword]);
+    LModules := ModulesJson(LBody);
     LId := TDB.ExecRetId(
-      'insert into users (company_id, username, full_name, email, password_hash, role, active, must_change_password) ' +
-      'values (:p0, :p1, :p2, :p3, :p4, :p5, :p6, :p7) returning id',
+      'insert into users (company_id, username, full_name, email, password_hash, role, active, must_change_password, allowed_modules) ' +
+      'values (:p0, :p1, :p2, :p3, :p4, :p5, :p6, :p7, NULLIF(:p8, '''')::jsonb) returning id',
       [LCompany, LUsername, LFullName, GetStr(LBody, 'email'), LHash, LRole, LActive,
-       GetBool(LBody, 'must_change_password', True)]);
+       GetBool(LBody, 'must_change_password', True), LModules]);
     AuditAction('create', 'user', LId, '{}');
     SendCreated(Res, LId);
   except
@@ -372,10 +385,10 @@ end;
 procedure UpdateUser(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr, LRole, LPassword, LHash: string;
+  LErr, LRole, LPassword, LHash, LModules: string;
   LId, LCompany, LTargetCompany: Integer;
   LTargetRole: string;
-  LActive: Boolean;
+  LActive, LHasModules: Boolean;
 begin
   if not RequireAdmin(Res) then Exit;
   LBody := nil;
@@ -413,10 +426,17 @@ begin
       TDB.Exec('update users set password_hash = :p0, must_change_password = false where id = :p1', [LHash, LId]);
     end;
 
+    LHasModules := Has(LBody, 'allowed_modules');
+    if LHasModules then
+    begin
+      LModules := ModulesJson(LBody);
+      TDB.Exec('update users set allowed_modules = NULLIF(:p0, '''')::jsonb where id = :p1', [LModules, LId]);
+    end;
+
     if not UpdateRow('users', USER_FIELDS, LBody, LId,
       IfThen(GAuth.IsSuper, 0, LCompany), LErr) then
     begin
-      if not (not LPassword.IsEmpty) then
+      if not (not LPassword.IsEmpty) and (not LHasModules) then
       begin SendError(Res, LErr, 400); Exit; end;
     end;
 

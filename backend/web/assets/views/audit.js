@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { isAdmin } from '../store.js';
+import { hasModule } from '../store.js';
 import * as ui from '../ui.js';
 
 const ACTIONS={login:'Ingreso',login_failed:'Ingreso fallido',logout:'Salida',create:'Alta',update:'Modificación',delete:'Baja',close:'Cierre',reopen:'Reapertura',change_password:'Cambio de clave'};
@@ -8,8 +8,8 @@ export default {
   title:'Auditoría',
   subtitle:'Trazabilidad de accesos y cambios',
   async render(root){
-    if(!isAdmin()){
-      root.innerHTML=`<div class="card">${ui.emptyState('Acceso restringido','Solo administradores pueden ver la auditoría.','lock')}</div>`;
+    if(!hasModule('audit')){
+      root.innerHTML=`<div class="card">${ui.emptyState('Acceso restringido','No tiene permiso para ver la auditoría.','lock')}</div>`;
       return;
     }
     root.innerHTML=`

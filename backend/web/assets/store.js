@@ -2,6 +2,7 @@ export const state = {
   user: null,
   company: null,
   settings: {},
+  modules: [],
   latest: null,
   today: localISO(new Date()),
 };
@@ -21,4 +22,10 @@ export function isAdmin(){
 }
 export function isSuper(){
   return !!state.user && state.user.role === 'superadmin';
+}
+
+export function hasModule(id){
+  if (!state.user) return false;
+  if (state.user.role === 'superadmin') return true;
+  return state.modules.includes(id);
 }

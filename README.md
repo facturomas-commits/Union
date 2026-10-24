@@ -126,6 +126,7 @@ Union/
     reportes.md
     api.md
     planilla-a-sistema.md
+    permisos.md
 ```
 
 ---
@@ -143,17 +144,19 @@ Ver detalle en [`docs/reportes.md`](docs/reportes.md).
 
 ---
 
-## 6. Roles
+## 6. Roles y módulos
 
 | Rol | Permisos |
 |---|---|
 | `superadmin` | Todo, empresas y superadmins |
 | `admin` | Todo dentro de su empresa, usuarios y configuración |
-| `supervisor` | Operación y maestros, sin usuarios/auditoría |
-| `operator` | Carga y edición de operación |
-| `viewer` | Solo lectura |
+| `supervisor` | Operación, maestros y reportes; sin usuarios/auditoría/configuración |
+| `operator` | Operación y reportes, sin maestros/auditoría/usuarios/configuración |
+| `viewer` | Solo lectura de la operación y reportes |
 
-La API valida el rol en cada escritura; el frontend oculta las acciones no permitidas.
+Además del rol, cada usuario tiene **módulos permitidos**. Se asignan en **Maestros → Usuarios** y controlan el menú, las pestañas y el acceso a la API. Un usuario puede tener, por ejemplo, solo el módulo Colectivos.
+
+Ver detalle y valores por defecto en [`docs/permisos.md`](docs/permisos.md).
 
 ---
 
