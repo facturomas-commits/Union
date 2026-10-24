@@ -60,13 +60,20 @@ export default {
         </tr>`).join(''):`<tr><td colspan="9">${ui.emptyState('Sin cargas','No hay combustible en el rango.','fuel')}</td></tr>`;
         const tot=rows.reduce((a,f)=>{a.l+=Number(f.liters||0);a.m+=Number(f.amount||0);return a;},{l:0,m:0});
         foot.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:12px"><span><b>${rows.length}</b> cargas</span><span>${ui.num(tot.l)} litros · <b>${ui.money(tot.m)}</b></span></div>`;
-        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>form(Number(b.dataset.edit), rows.find(x=>x.id===Number(b.dataset.edit)), load, vs));
-        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del), load));
+        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>form(Number(b.dataset.edit), rows.find(x=>x.id===Number(b.dataset.edit)), onSaved, vs));
+        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del), onSaved));
       }catch(ex){ tbody.innerHTML=`<tr><td colspan="9">${ui.emptyState('No se pudo cargar',ex.message,'alert')}</td></tr>`; }
     }
     ['#f-from','#f-to','#f-vehicle'].forEach(s=>root.querySelector(s).onchange=load);
     root.querySelector('#btn-reload').onclick=load;
-    const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>form(null,null,load,vs);
+    const onSaved = async (date)=>{
+      if(date){
+        const from=root.querySelector('#f-from'), to=root.querySelector('#f-to');
+        if(date < from.value || date > to.value){ from.value=date.slice(0,7)+'-01'; to.value=date; }
+      }
+      await load();
+    };
+    const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>form(null,null,onSaved,vs);
     await load();
   }
 };
@@ -111,7 +118,7 @@ function form(id, f, onDone, vs){
       };
       if(!payload.vehicle_id||!payload.load_date) throw new Error('Complete vehículo y fecha');
       if(isEdit) await api.put('/fuel/'+id,payload); else await api.post('/fuel',payload);
-      ui.toast(isEdit?'Carga actualizada':'Carga registrada','ok'); close(); await onDone();
+      ui.toast(isEdit?'Carga actualizada':'Carga registrada','ok'); close(); await onDone(payload.load_date);
     }
   });
 }

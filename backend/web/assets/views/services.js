@@ -95,9 +95,9 @@ export default {
           <span><b>${rows.length}</b> servicios · <b>${ui.integer(tot.tickets)}</b> boletos</span>
           <span>Recaudación <b>${ui.money(tot.rev)}</b> · Gasoil <b>${ui.money(tot.fuel)}</b> · Deducciones <b>${ui.money(tot.ded)}</b> · Sobrante <b class="${tot.sur<0?'neg':'pos'}">${ui.money(tot.sur)}</b></span>
         </div>`;
-        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openForm(Number(b.dataset.edit), load));
-        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeService(Number(b.dataset.del), load));
-        tbody.querySelectorAll('[data-close-svc]').forEach(b=>b.onclick=()=>toggleClose(Number(b.dataset.closeSvc), rows.find(r=>r.id===Number(b.dataset.closeSvc)), load));
+        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openForm(Number(b.dataset.edit), onSaved));
+        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeService(Number(b.dataset.del), onSaved));
+        tbody.querySelectorAll('[data-close-svc]').forEach(b=>b.onclick=()=>toggleClose(Number(b.dataset.closeSvc), rows.find(r=>r.id===Number(b.dataset.closeSvc)), onSaved));
       }catch(ex){
         tbody.innerHTML = `<tr><td colspan="11">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
         ui.toast(ex.message,'err');
@@ -106,8 +106,18 @@ export default {
 
     ['#f-from','#f-to','#f-vehicle','#f-status'].forEach(sel=>root.querySelector(sel).onchange=load);
     root.querySelector('#btn-reload').onclick=load;
+    const onSaved = async (date)=>{
+      if(date){
+        const from=root.querySelector('#f-from'), to=root.querySelector('#f-to');
+        if(date < from.value || date > to.value){
+          from.value=date.slice(0,7)+'-01';
+          to.value=date;
+        }
+      }
+      await load();
+    };
     const btnNew=root.querySelector('#btn-new');
-    if (btnNew) btnNew.onclick=()=>openForm(null, load);
+    if (btnNew) btnNew.onclick=()=>openForm(null, onSaved);
     await load();
   }
 };
@@ -204,7 +214,7 @@ async function openForm(id, onDone){
       if (isEdit) await api.put('/services/'+id, payload);
       else await api.post('/services', payload);
       ui.toast(isEdit?'Servicio actualizado':'Servicio creado','ok');
-      close(); await onDone();
+      close(); await onDone(payload.service_date);
     }
   });
   return m;

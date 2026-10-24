@@ -67,13 +67,20 @@ export default {
         }).join(''):`<tr><td colspan="7">${ui.emptyState('Sin gastos','No hay gastos en el rango.','receipt')}</td></tr>`;
         const total=filtered.reduce((a,x)=>a+Number(x.amount||0),0);
         foot.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:12px"><span><b>${filtered.length}</b> registros</span><span>Total <b>${ui.money(total)}</b></span></div>`;
-        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>form(Number(b.dataset.edit),filtered.find(x=>x.id===Number(b.dataset.edit)),load,vs));
-        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del),load));
+        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>form(Number(b.dataset.edit),filtered.find(x=>x.id===Number(b.dataset.edit)),onSaved,vs));
+        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del),onSaved));
       }catch(ex){ tbody.innerHTML=`<tr><td colspan="7">${ui.emptyState('No se pudo cargar',ex.message,'alert')}</td></tr>`; }
     }
     ['#f-from','#f-to','#f-cat'].forEach(s=>root.querySelector(s).onchange=load);
     root.querySelector('#btn-reload').onclick=load;
-    const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>form(null,null,load,vs);
+    const onSaved = async (date)=>{
+      if(date){
+        const from=root.querySelector('#f-from'), to=root.querySelector('#f-to');
+        if(date < from.value || date > to.value){ from.value=date.slice(0,7)+'-01'; to.value=date; }
+      }
+      await load();
+    };
+    const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>form(null,null,onSaved,vs);
     await load();
   }
 };
@@ -117,7 +124,7 @@ function form(id,x,onDone,vs){
         };
         if(!payload.expense_date||!payload.category||!(payload.amount>0)) throw new Error('Complete fecha, categoría e importe');
         if(isEdit) await api.put('/expenses/'+id,payload); else await api.post('/expenses',payload);
-        ui.toast(isEdit?'Gasto actualizado':'Gasto registrado','ok'); close(); await onDone();
+        ui.toast(isEdit?'Gasto actualizado':'Gasto registrado','ok'); close(); await onDone(payload.expense_date);
       }
     });
   }).catch(ex=>ui.toast(ex.message,'err'));

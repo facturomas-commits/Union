@@ -72,13 +72,20 @@ export default {
           <span>Neto <b>${ui.money(tot.n)}</b> · IVA <b>${ui.money(tot.v)}</b> · Total <b>${ui.money(tot.t)}</b> · Comisión <b>${ui.money(tot.c)}</b></span>
         </div>`;
         tbody.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>viewTrip(Number(b.dataset.view)));
-        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openForm(Number(b.dataset.edit),load,c));
-        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del),load));
+        tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openForm(Number(b.dataset.edit),onSaved,c));
+        tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del),onSaved));
       }catch(ex){ tbody.innerHTML=`<tr><td colspan="10">${ui.emptyState('No se pudo cargar',ex.message,'alert')}</td></tr>`; }
     }
     ['#f-from','#f-to','#f-vehicle'].forEach(s=>root.querySelector(s).onchange=load);
     root.querySelector('#btn-reload').onclick=load;
-    const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>openForm(null,load,c);
+    const onSaved = async (date)=>{
+      if(date){
+        const from=root.querySelector('#f-from'), to=root.querySelector('#f-to');
+        if(date < from.value || date > to.value){ from.value=date.slice(0,7)+'-01'; to.value=date; }
+      }
+      await load();
+    };
+    const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>openForm(null,onSaved,c);
     await load();
   }
 };
@@ -178,7 +185,7 @@ function openForm(id,onDone,c){
         if(!payload.trip_date||!payload.vehicle_id) throw new Error('Complete fecha y camión');
         if(!items.length) throw new Error('Agregue al menos un remito');
         if(trip) await api.put('/freight/trips/'+id,payload); else await api.post('/freight/trips',payload);
-        ui.toast(trip?'Viaje actualizado':'Viaje creado','ok'); close(); await onDone();
+        ui.toast(trip?'Viaje actualizado':'Viaje creado','ok'); close(); await onDone(payload.trip_date);
       }
     });
   })().catch(ex=>ui.toast(ex.message,'err'));
