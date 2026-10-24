@@ -1,7 +1,7 @@
 import { api, ApiError } from './api.js';
 import { state, canWrite, isAdmin, isSuper, hasModule, canSeeMoney } from './store.js';
 import { VIEW_MODULE, MODULES, defaultModules } from './modules.js';
-import { icon, initials, roleLabel, toast, openModal, formData } from './ui.js';
+import { icon, initials, roleLabel, toast, openModal, formData, decorateTables } from './ui.js';
 import { renderLogin } from './views/login.js';
 
 import dashboard from './views/dashboard.js';
@@ -67,7 +67,7 @@ function shell(current){
   const c=state.company||{};
   return `
   <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <div class="mark">U</div>
         <div><div class="name">UNIÓN</div><div class="sub">GESTIÓN DE TRANSPORTE</div></div>
@@ -82,6 +82,7 @@ function shell(current){
     <div class="main">
       <header class="topbar">
         <div class="topbar-left">
+          <button class="icon-btn mobile-menu-btn" id="btn-menu" title="Abrir menú" aria-label="Abrir menú">${icon('menu')}</button>
           <div>
             <div class="topbar-title" id="ptitle">—</div>
             <div class="topbar-sub" id="psub">—</div>
@@ -96,6 +97,7 @@ function shell(current){
       </header>
       <main class="content" id="view"></main>
     </div>
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
   </div>`;
 }
 
@@ -142,6 +144,11 @@ async function renderCurrent(){
   document.title=`${view.title || 'UNIÓN'} · UNION`;
   try{
     await view.render(content);
+    decorateTables(document);
+    if (!window.__unionTableObserver){
+      window.__unionTableObserver=new MutationObserver(()=>decorateTables(document));
+      window.__unionTableObserver.observe(document.body,{childList:true,subtree:true});
+    }
   }catch(ex){
     if (ex instanceof ApiError && ex.unauthorized){ showLogin(); return; }
     content.innerHTML=`<div class="card"><div class="empty"><strong>No se pudo cargar la vista</strong><span>${ex.message||ex}</span></div></div>`;
@@ -151,7 +158,26 @@ async function renderCurrent(){
 }
 
 function bindShell(){
+  const sidebar=document.getElementById('sidebar');
+  const backdrop=document.getElementById('drawer-backdrop');
+  const menuBtn=document.getElementById('btn-menu');
+  const closeDrawer=()=>{
+    sidebar?.classList.remove('open');
+    backdrop?.classList.remove('show');
+    document.body.classList.remove('drawer-open');
+  };
+  const openDrawer=()=>{
+    sidebar?.classList.add('open');
+    backdrop?.classList.add('show');
+    document.body.classList.add('drawer-open');
+  };
+  if (menuBtn) menuBtn.onclick=()=>sidebar?.classList.contains('open')?closeDrawer():openDrawer();
+  if (backdrop) backdrop.onclick=closeDrawer;
+  sidebar?.querySelectorAll('.nav-item').forEach(a=>a.addEventListener('click',closeDrawer));
+  window.onresize=()=>{ if(window.innerWidth>980) closeDrawer(); };
+
   document.getElementById('btn-logout').onclick=async()=>{
+    closeDrawer();
     try{ await api.logout(); }catch(e){}
     showLogin();
   };
@@ -185,6 +211,9 @@ function changePassword(){
 function showLogin(){
   if (document.querySelector('#login-form')) return;
   state.user=null; state.company=null; state.settings={}; state.modules=[]; state.canViewFinancials=false;
+  document.body.classList.remove('drawer-open');
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('drawer-backdrop')?.classList.remove('show');
   const app=document.getElementById('app');
   renderLogin(app, async (data)=>{
     await loadSession(data);

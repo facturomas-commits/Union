@@ -27,6 +27,21 @@ export function phoneLink(phone){
   const dial=value.replace(/[^\d+]/g,'');
   return `<a class="phone-link" href="tel:${esc(dial)}" title="Llamar">${icon('phone',13)} ${esc(value)}</a>`;
 }
+
+/* Convierte las tablas en fichas legibles en móvil usando los encabezados. */
+export function decorateTables(root=document){
+  root.querySelectorAll('table.data').forEach(table=>{
+    const headers=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+    table.querySelectorAll('tbody tr, tfoot tr').forEach(tr=>{
+      [...tr.children].forEach((cell,index)=>{
+        if(cell.tagName!=='TD') return;
+        const label=headers[index]||'';
+        if(label) cell.setAttribute('data-label',label);
+        else cell.removeAttribute('data-label');
+      });
+    });
+  });
+}
 export function num(n, d=2){
   const v = Number(n);
   if (!Number.isFinite(v)) return '0,00';

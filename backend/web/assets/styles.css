@@ -322,11 +322,15 @@ table.data tbody tr:hover td.sticky-col{background:#f8fbff}
 .report-section{margin-bottom:22px}
 .report-section h4{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.summary-strip.cols-5{grid-template-columns:repeat(5,1fr)}
 .summary-cell{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:#fbfdff}
 .summary-cell .l{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:800}
 .summary-cell .v{font-size:18px;font-weight:900;letter-spacing:-.02em;margin-top:3px}
 
 /* ---------- Responsive ---------- */
+.mobile-menu-btn,.drawer-backdrop{display:none}
+body.drawer-open{overflow:hidden}
+
 @media (max-width:1250px){
   .grid-kpi{grid-template-columns:repeat(3,1fr)}
   .grid-main{grid-template-columns:1fr}
@@ -335,14 +339,57 @@ table.data tbody tr:hover td.sticky-col{background:#f8fbff}
 }
 @media (max-width:980px){
   .app{flex-direction:column}
-  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;align-items:center;overflow:visible}
-  .sidebar-brand{border-bottom:0;padding:10px 12px;flex:1 1 auto}
-  .nav{order:3;flex:0 0 100%;display:flex;padding:6px 8px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-top:1px solid rgba(255,255,255,.08)}
-  .nav-group{display:none}
-  .nav-item{flex:0 0 auto;margin:0 2px;padding:8px 10px}
-  .sidebar-user{border-top:0;border-left:1px solid rgba(255,255,255,.08);flex:0 0 auto}
+  .sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:min(280px,84vw);height:100vh;
+    flex-direction:column;align-items:stretch;overflow-y:auto;
+    transform:translateX(-100%);transition:transform .22s ease;z-index:60;
+    box-shadow:12px 0 30px rgba(15,23,42,.25);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .drawer-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:55}
+  .drawer-backdrop.show{display:block}
+  .sidebar-brand{border-bottom:1px solid rgba(255,255,255,.08);padding:20px 18px 16px;flex:0 0 auto}
+  .nav{display:block;flex:1;padding:14px 10px 20px;overflow-y:auto;border-top:0}
+  .nav-group{display:block}
+  .nav-item{display:flex;margin:0 0 2px;padding:9px 10px}
+  .sidebar-user{border-top:1px solid rgba(255,255,255,.08);border-left:0;flex:0 0 auto}
+  .mobile-menu-btn{display:inline-flex}
   .content{padding:18px}
   .topbar{height:58px;padding:0 16px}
+  .tabs{flex-wrap:wrap;overflow:visible;padding:8px 12px}
+  .tab{flex:0 0 auto}
+
+  /* Tablas como fichas: sin scroll horizontal */
+  .table-wrap{overflow:visible}
+  table.data{display:block;width:100%}
+  table.data thead{display:none}
+  table.data tbody,table.data tfoot{display:block}
+  table.data tbody tr,table.data tfoot tr{
+    display:block;border:1px solid var(--border);border-radius:12px;background:#fff;
+    margin:10px 12px;padding:4px 12px;box-shadow:0 1px 2px rgba(15,23,42,.04);
+  }
+  table.data tbody tr:hover{background:#fff}
+  table.data tfoot tr{background:#f8fafc}
+  table.data td{
+    display:block;position:relative;padding:8px 0 8px 40%;
+    border-bottom:1px solid #eef2f7;text-align:right;white-space:normal;
+    overflow-wrap:anywhere;max-width:none!important;
+  }
+  table.data td:last-child{border-bottom:0}
+  table.data td::before{
+    content:attr(data-label);position:absolute;left:0;top:8px;width:36%;
+    text-align:left;color:var(--muted);font-size:10px;letter-spacing:.05em;
+    text-transform:uppercase;font-weight:800;
+  }
+  table.data td:not([data-label]),table.data td[colspan]{padding-left:0;text-align:left}
+  table.data td:not([data-label])::before,table.data td[colspan]::before{display:none}
+  table.data td[colspan]{text-align:center}
+  table.data td.num{text-align:right;white-space:normal}
+  table.data th.sticky-col,table.data td.sticky-col{position:static;box-shadow:none;background:transparent}
+  table.data td.sticky-col{padding-left:0;text-align:right}
+  table.data td.sticky-col::before{display:none}
+  table.data .table-actions{justify-content:flex-end;flex-wrap:wrap}
+  table.data td:empty{display:none}
 }
 @media (max-width:720px){
   .grid-kpi{grid-template-columns:1fr 1fr}
@@ -350,32 +397,36 @@ table.data tbody tr:hover td.sticky-col{background:#f8fbff}
   .form-grid,.form-grid.cols-3,.form-grid.cols-4{grid-template-columns:1fr}
   .page-title{font-size:21px}
   .content{padding:14px}
-  .summary-strip{grid-template-columns:1fr 1fr}
+  .summary-strip,.summary-strip.cols-5{grid-template-columns:1fr 1fr}
   .topbar-sub{display:none}
   .filters{padding:12px 14px}
 }
 @media (max-width:460px){
-  .grid-kpi,.summary-strip{grid-template-columns:1fr}
-  .sidebar-user .who{display:none}
-  .sidebar-user{padding:8px}
-  .sidebar-brand .sub{display:none}
+  .grid-kpi,.summary-strip,.summary-strip.cols-5{grid-template-columns:1fr}
   .topbar-right .pill:first-child{display:none}
   .page-title{font-size:19px}
-  .table-wrap{-webkit-overflow-scrolling:touch}
 }
 
 /* ---------- Print ---------- */
 @media print{
   @page{size:A4 landscape;margin:12mm}
   body{background:#fff;font-size:10.5px}
-  .sidebar,.topbar,.no-print,.toasts,.filters,.actions,.tabs{display:none!important}
+  .sidebar,.topbar,.mobile-menu-btn,.drawer-backdrop,.no-print,.toasts,.filters,.actions,.tabs{display:none!important}
   .app,.main,.content{display:block;padding:0;max-width:none}
   .card{box-shadow:none;border:1px solid #cbd5e1;break-inside:avoid}
   .print-only{display:block!important}
   .report-head{border-bottom:2px solid #000}
   table.data th{background:#f1f5f9!important}
-  table.data{font-size:9.5px}
-  .summary-strip{grid-template-columns:repeat(4,1fr)}
+  table.data{display:table;width:100%;font-size:9.5px}
+  table.data thead{display:table-header-group}
+  table.data tbody{display:table-row-group}
+  table.data tfoot{display:table-footer-group}
+  table.data tr{display:table-row;border:0;margin:0;padding:0;box-shadow:none;background:transparent}
+  table.data th,table.data td{display:table-cell;border-bottom:1px solid #e2e8f0;padding:6px 7px;text-align:left}
+  table.data td::before{display:none}
+  table.data td.num,table.data th.num{text-align:right}
+  .table-wrap{overflow:visible}
+  .summary-strip,.summary-strip.cols-5{grid-template-columns:repeat(4,1fr)}
   a{color:#000}
 }
 .print-only{display:none}

@@ -118,13 +118,13 @@ function openForm(id,onDone,c){
         <div class="field" style="grid-column:span 3"><label>Notas</label><input name="notes" value="${ui.esc(t.notes||'')}"></div>
       </div>
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">Remitos <button type="button" class="btn btn-sm btn-secondary" id="add-item">${ui.icon('plus',13)} Agregar remito</button></div>
-      <div class="table-wrap" style="border:1px solid var(--border);border-radius:9px;overflow:hidden">
+      <div class="table-wrap" style="border:1px solid var(--border);border-radius:9px">
         <table class="data" style="font-size:11.5px">
           <thead><tr><th>Remito</th><th>Origen</th><th>Destino</th><th class="num">Kilos</th><th class="num">Tarifa $/t</th><th class="num">Neto</th><th></th></tr></thead>
           <tbody id="items-body">${items.map(itemRow).join('')}</tbody>
         </table>
       </div>
-      <div class="summary-strip" style="margin-top:14px;margin-bottom:0;grid-template-columns:repeat(5,1fr)">
+      <div class="summary-strip cols-5" style="margin-top:14px;margin-bottom:0">
         ${['Kilos','Neto','IVA 21%','Total','Comisión'].map((l,i)=>`<div class="summary-cell"><div class="l">${l}</div><div class="v money" id="sum-${i}">$0,00</div></div>`).join('')}
       </div>`;
 
@@ -200,13 +200,13 @@ async function viewTrip(id){
       subtitle:`${ui.dateDMY(t.trip_date)} · Camión #${t.vehicle_no} · ${t.driver_name||'Sin chofer'}`,
       wide:true, hideSubmit:true,
       body:`
-        <div class="summary-strip" style="grid-template-columns:repeat(4,1fr)">
+        <div class="summary-strip">
           <div class="summary-cell"><div class="l">Kilos</div><div class="v">${ui.integer(t.kilos)}</div></div>
           <div class="summary-cell"><div class="l">Neto</div><div class="v">${ui.money(t.net_amount)}</div></div>
           <div class="summary-cell"><div class="l">Total</div><div class="v">${ui.money(t.total_amount)}</div></div>
           <div class="summary-cell"><div class="l">Comisión chofer</div><div class="v">${ui.money(t.driver_commission)}</div></div>
         </div>
-        <div class="table-wrap" style="border:1px solid var(--border);border-radius:9px;overflow:hidden">
+        <div class="table-wrap" style="border:1px solid var(--border);border-radius:9px">
           <table class="data"><thead><tr><th>Remito</th><th>Origen</th><th>Destino</th><th class="num">Kilos</th><th class="num">Tarifa</th><th class="num">Neto</th><th class="num">IVA</th><th class="num">Total</th></tr></thead>
           <tbody>${items.map(i=>`<tr><td>${ui.esc(i.remito||'—')}</td><td>${ui.esc(i.origin||'—')}</td><td>${ui.esc(i.destination||'—')}</td><td class="num">${ui.integer(i.kilos)}</td><td class="num">${ui.money(i.tariff)}</td><td class="num">${ui.money(i.net_amount)}</td><td class="num">${ui.money(i.vat_amount)}</td><td class="num"><strong>${ui.money(i.total_amount)}</strong></td></tr>`).join('')}</tbody>
           </table>
