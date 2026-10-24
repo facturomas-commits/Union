@@ -14,14 +14,15 @@ Sistema web de gestión operativa y financiera para una empresa de transporte de
 
 | Módulo | Contenido |
 |---|---|
-| **Dashboard** | KPIs del día, evolución de 7 días, alertas, servicios y camión |
-| **Servicios** | Libro diario de colectivos: ruta, coche, chofer, guarda, boletos, recaudación, gasoil, deducciones y sobrante |
+| **Dashboard** | KPIs del día, evolución de 7 días, alertas, colectivos y camión |
+| **Servicios** | Programación de horarios y turnos: ruta, ida/vuelta, hora de salida, coche, chofer y guarda |
+| **Colectivos** | Libro diario de recaudación: boletos, recaudación, gasoil, deducciones, sobrante y cierre |
 | **Combustible** | Cargas de gasoil por vehículo, litros, importe, odómetro y tanque lleno |
 | **Gastos** | Oncológico, boleterías, Mercado Pago y otros, asociados o no a un servicio |
 | **Camión** | Viajes con remitos, kilos, tarifa, neto, IVA 21 %, total y comisión del chofer 15 % |
 | **Mantenimiento** | Reparaciones, services y próximos cambios, con alertas de vencimiento |
 | **Maestros** | Vehículos, empleados (choferes/guardas), rutas, usuarios y configuración |
-| **Reportes** | Diario y mensual, consolidado, por vehículo y por chofer, con impresión y CSV |
+| **Reportes** | Vistas General / Colectivos / Camión, diaria y mensual, con impresión y CSV |
 | **Auditoría** | Registro de accesos, altas, modificaciones, bajas y cierres |
 
 La planilla original se migró completa:
@@ -116,7 +117,7 @@ Union/
     src/                         Código Delphi (Horse)
       UnionBackend.dpr
       UConfig, UDB, UHttp, UAuth, UApi
-      UCatalogRoutes, UOpsRoutes, UFreightRoutes, UReportRoutes, UWeb
+      UCatalogRoutes, UScheduleRoutes, UOpsRoutes, UFreightRoutes, UReportRoutes, UWeb
     web/                         SPA (HTML/CSS/JS)
     lib/horse/                   Horse
     build.ps1 / run.ps1
@@ -132,6 +133,8 @@ Union/
 ## 5. Reglas de negocio principales
 
 - **Sobrante del servicio** = recaudación − gasoil − oncológico − boleterías − Mercado Pago − otros.
+- **Ida y vuelta:** una ruta es un corredor; cada salida se carga por separado con su dirección (`ida`/`vuelta`) y horario. La vuelta puede vincularse a su ida.
+- **Servicios vs. Colectivos:** Servicios es la programación de horarios/turnos; Colectivos es la operación diaria con recaudación y cierre.
 - **Camión:** neto = tarifa × kilos / 1000; IVA = neto × 21 %; total = neto + IVA; comisión chofer = neto × 15 % (configurable).
 - **Cierre:** se registra el efectivo entregado y la diferencia contra el sobrante calculado.
 - **Alertas:** mantenimientos con `next_due` dentro de los días configurados, servicios abiertos y servicios con sobrante negativo.

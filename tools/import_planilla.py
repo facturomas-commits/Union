@@ -122,7 +122,7 @@ def main():
     add("BEGIN;")
     add("TRUNCATE audit_log, sessions, service_closings, service_expenses,")
     add("         fuel_loads, freight_items, freight_trips, maintenance,")
-    add("         services, routes, vehicles, employees, settings, users, companies")
+    add("         services, service_schedules, routes, vehicles, employees, settings, users, companies")
     add("         RESTART IDENTITY CASCADE;")
     add("")
 
@@ -261,6 +261,17 @@ def main():
     add(",\n".join(service_rows) + ";")
     add("")
 
+    add("-- Programación de servicios (horarios/turnos) derivada del libro diario")
+    add("INSERT INTO service_schedules (company_id, route_id, direction, departure_time, vehicle_id, driver_id, guard_id)")
+    add("SELECT DISTINCT company_id, route_id, direction, departure_time, vehicle_id, driver_id, guard_id")
+    add("FROM services;")
+    add("UPDATE services s SET schedule_id = sc.id")
+    add("FROM service_schedules sc")
+    add("WHERE sc.company_id = s.company_id AND sc.route_id = s.route_id")
+    add("  AND sc.direction = s.direction AND sc.departure_time = s.departure_time")
+    add("  AND sc.vehicle_id = s.vehicle_id;")
+    add("")
+
     if fuel_rows:
         add("-- Combustible vinculado a cada servicio")
         add("INSERT INTO fuel_loads (company_id, vehicle_id, service_id, load_date, liters,")
@@ -341,7 +352,7 @@ def main():
     # ---------------- Secuencias ----------------
     add("-- Ajuste de secuencias")
     for table in ("companies", "users", "employees", "vehicles", "routes", "services",
-                  "maintenance", "freight_trips"):
+                  "service_schedules", "maintenance", "freight_trips"):
         add(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE((SELECT MAX(id) FROM {table}), 1));")
     add("COMMIT;")
     add("")

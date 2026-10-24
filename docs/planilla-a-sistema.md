@@ -1,5 +1,13 @@
 # De la planilla al sistema
 
+## Módulos
+
+| Hoja | Módulo |
+|---|---|
+| Libro Diario Colectivos | **Colectivos** (operación diaria) + **Servicios** (programación de horarios) |
+| REPARACIONES | **Mantenimiento** |
+| Planilla CAMION | **Camión** |
+
 ## Hoja 1 · Libro Diario Colectivos
 
 | Columna planilla | Campo | Tabla |

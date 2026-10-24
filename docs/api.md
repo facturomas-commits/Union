@@ -28,7 +28,17 @@ Todas las respuestas son JSON. Errores: `{ "error": "mensaje" }`.
 | PUT/DELETE | `/users/:id` (admin) |
 | GET/POST | `/companies` (admin/super) |
 | PUT/DELETE | `/companies/:id` (super) |
-| GET/PUT | `/settings` (admin) |
+| GET/POST | `/settings` (admin) |
+
+## Programación de servicios
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/schedules?route_id&direction&active=1` | Horarios/turnos programados |
+| GET/PUT/DELETE | `/schedules/:id` | Detalle / edición / baja lógica |
+| POST | `/schedules` | Alta de horario (ruta, dirección, hora, coche, chofer, guarda) |
+
+La ida y la vuelta son horarios separados dentro de la misma ruta.
 
 ## Operación
 

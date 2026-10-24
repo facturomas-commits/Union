@@ -5,7 +5,7 @@
 BEGIN;
 TRUNCATE audit_log, sessions, service_closings, service_expenses,
          fuel_loads, freight_items, freight_trips, maintenance,
-         services, routes, vehicles, employees, settings, users, companies
+         services, service_schedules, routes, vehicles, employees, settings, users, companies
          RESTART IDENTITY CASCADE;
 
 -- Empresa
@@ -60,6 +60,16 @@ INSERT INTO services (id, company_id, service_date, route_id, vehicle_id, driver
   (6, 1, '2025-05-02', 1, 1, 1, 4, '09:50:00', 'VTA 9.50 PS-SJ', 130.0, 11898, 11921, 151200.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'vuelta', 5),
   (7, 1, '2025-05-02', 1, 2, 2, 4, '12:45:00', 'IDA 12.45 SJ-PS', 130.0, 11922, 11942, 133700.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'ida', NULL),
   (8, 1, '2025-05-02', 1, 2, 2, 4, '16:15:00', 'VTA 16.15 PS - SJ', 130.0, 11943, 12000, 367200.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'vuelta', 7);
+
+-- Programación de servicios (horarios/turnos) derivada del libro diario
+INSERT INTO service_schedules (company_id, route_id, direction, departure_time, vehicle_id, driver_id, guard_id)
+SELECT DISTINCT company_id, route_id, direction, departure_time, vehicle_id, driver_id, guard_id
+FROM services;
+UPDATE services s SET schedule_id = sc.id
+FROM service_schedules sc
+WHERE sc.company_id = s.company_id AND sc.route_id = s.route_id
+  AND sc.direction = s.direction AND sc.departure_time = s.departure_time
+  AND sc.vehicle_id = s.vehicle_id;
 
 -- Combustible vinculado a cada servicio
 INSERT INTO fuel_loads (company_id, vehicle_id, service_id, load_date, liters,
@@ -156,6 +166,7 @@ SELECT setval(pg_get_serial_sequence('employees', 'id'), COALESCE((SELECT MAX(id
 SELECT setval(pg_get_serial_sequence('vehicles', 'id'), COALESCE((SELECT MAX(id) FROM vehicles), 1));
 SELECT setval(pg_get_serial_sequence('routes', 'id'), COALESCE((SELECT MAX(id) FROM routes), 1));
 SELECT setval(pg_get_serial_sequence('services', 'id'), COALESCE((SELECT MAX(id) FROM services), 1));
+SELECT setval(pg_get_serial_sequence('service_schedules', 'id'), COALESCE((SELECT MAX(id) FROM service_schedules), 1));
 SELECT setval(pg_get_serial_sequence('maintenance', 'id'), COALESCE((SELECT MAX(id) FROM maintenance), 1));
 SELECT setval(pg_get_serial_sequence('freight_trips', 'id'), COALESCE((SELECT MAX(id) FROM freight_trips), 1));
 COMMIT;

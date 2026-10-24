@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+﻿import { api } from '../api.js';
 import { icon } from '../ui.js';
 
 export function renderLogin(root, onSuccess){
@@ -11,10 +11,10 @@ export function renderLogin(root, onSuccess){
       </div>
       <div class="login-copy">
         <h2>Todo el día.<br><span>En un solo lugar.</span></h2>
-        <p>Servicios, recaudación, combustible, mantenimiento y camión. Reportes diarios profesionales, con trazabilidad y control de cada viaje.</p>
+        <p>Colectivos, camión, recaudación, combustible y mantenimiento. Reportes diarios profesionales, con trazabilidad y control de cada viaje.</p>
       </div>
       <div class="login-features">
-        <div class="login-feature"><strong>Operación diaria</strong><span>Servicios, boletos y cierre</span></div>
+        <div class="login-feature"><strong>Operación diaria</strong><span>Colectivos, boletos y cierre</span></div>
         <div class="login-feature"><strong>Flota</strong><span>Mantenimiento y combustible</span></div>
         <div class="login-feature"><strong>Reportes</strong><span>Diarios, mensuales y CSV</span></div>
       </div>
@@ -61,3 +61,4 @@ export function renderLogin(root, onSuccess){
   };
   setTimeout(() => form.username.focus(), 40);
 }
+

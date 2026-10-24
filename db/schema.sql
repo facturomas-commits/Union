@@ -139,6 +139,28 @@ CREATE INDEX IF NOT EXISTS idx_routes_company ON routes(company_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_routes_code ON routes(company_id, code) WHERE code IS NOT NULL AND code <> '';
 
 -- ------------------------------------------------------------
+-- PROGRAMACIÓN DE SERVICIOS (horarios / turnos)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS service_schedules (
+  id              SERIAL PRIMARY KEY,
+  company_id      INTEGER NOT NULL REFERENCES companies(id),
+  route_id        INTEGER NOT NULL REFERENCES routes(id),
+  direction       VARCHAR(10) NOT NULL DEFAULT 'ida'
+                  CHECK (direction IN ('ida','vuelta')),
+  departure_time  TIME NOT NULL,
+  vehicle_id      INTEGER NOT NULL REFERENCES vehicles(id),
+  driver_id       INTEGER REFERENCES employees(id),
+  guard_id        INTEGER REFERENCES employees(id),
+  active          BOOLEAN NOT NULL DEFAULT TRUE,
+  notes           VARCHAR(200),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_schedules_unique
+  ON service_schedules(company_id, route_id, direction, departure_time, vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_company ON service_schedules(company_id, route_id, direction, departure_time);
+
+-- ------------------------------------------------------------
 -- OPERACIÓN COLECTIVOS
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS services (
@@ -154,6 +176,7 @@ CREATE TABLE IF NOT EXISTS services (
   direction       VARCHAR(10) NOT NULL DEFAULT 'ida'
                   CHECK (direction IN ('ida','vuelta')),
   return_of_id    INTEGER REFERENCES services(id) ON DELETE CASCADE,
+  schedule_id     INTEGER REFERENCES service_schedules(id) ON DELETE SET NULL,
   km              NUMERIC(10,2) NOT NULL DEFAULT 0,
   ticket_from     INTEGER,
   ticket_to       INTEGER,
@@ -173,6 +196,7 @@ CREATE TABLE IF NOT EXISTS services (
 -- Compatibilidad con bases creadas antes de incorporar ida/vuelta
 ALTER TABLE services ADD COLUMN IF NOT EXISTS direction VARCHAR(10) NOT NULL DEFAULT 'ida';
 ALTER TABLE services ADD COLUMN IF NOT EXISTS return_of_id INTEGER REFERENCES services(id) ON DELETE CASCADE;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS schedule_id INTEGER REFERENCES service_schedules(id) ON DELETE SET NULL;
 ALTER TABLE services DROP CONSTRAINT IF EXISTS chk_services_direction;
 ALTER TABLE services ADD CONSTRAINT chk_services_direction CHECK (direction IN ('ida','vuelta'));
 ALTER TABLE services DROP CONSTRAINT IF EXISTS services_return_of_id_fkey;
@@ -330,6 +354,9 @@ CREATE TRIGGER trg_vehicles_upd BEFORE UPDATE ON vehicles
 DROP TRIGGER IF EXISTS trg_routes_upd ON routes;
 CREATE TRIGGER trg_routes_upd BEFORE UPDATE ON routes
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_schedules_upd ON service_schedules;
+CREATE TRIGGER trg_schedules_upd BEFORE UPDATE ON service_schedules
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_services_upd ON services;
 CREATE TRIGGER trg_services_upd BEFORE UPDATE ON services
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -357,6 +384,7 @@ SELECT
   CASE WHEN s.direction = 'vuelta' THEN r.origin ELSE r.destination END AS service_destination,
   s.direction,
   s.return_of_id,
+  s.schedule_id,
   s.vehicle_id,
   v.internal_no     AS vehicle_no,
   v.plate           AS vehicle_plate,
@@ -420,6 +448,24 @@ LEFT JOIN LATERAL (
   FROM service_expenses e
   WHERE e.service_id = s.id
 ) x ON TRUE;
+
+CREATE OR REPLACE VIEW v_schedules AS
+SELECT
+  sc.id, sc.company_id,
+  sc.route_id, r.code AS route_code, r.name AS route_name,
+  sc.direction,
+  CASE WHEN sc.direction = 'vuelta' THEN r.destination ELSE r.origin END AS service_origin,
+  CASE WHEN sc.direction = 'vuelta' THEN r.origin ELSE r.destination END AS service_destination,
+  sc.departure_time,
+  sc.vehicle_id, v.internal_no AS vehicle_no, v.plate,
+  sc.driver_id, d.full_name AS driver_name,
+  sc.guard_id, g.full_name AS guard_name,
+  sc.active, sc.notes, sc.created_at, sc.updated_at
+FROM service_schedules sc
+JOIN routes r    ON r.id = sc.route_id
+JOIN vehicles v  ON v.id = sc.vehicle_id
+LEFT JOIN employees d ON d.id = sc.driver_id
+LEFT JOIN employees g ON g.id = sc.guard_id;
 
 CREATE OR REPLACE VIEW v_fuel_loads AS
 SELECT f.*, v.internal_no AS vehicle_no, v.plate,

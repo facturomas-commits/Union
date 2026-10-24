@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+﻿import { api } from '../api.js';
 import { state, canWrite } from '../store.js';
 import * as ui from '../ui.js';
 
@@ -16,7 +16,7 @@ function kpi(label, value, foot, iconName, cls='', small=false){
 }
 
 function serviceRows(rows){
-  if (!rows || !rows.length) return `<tr><td colspan="8">${ui.emptyState('Sin servicios cargados','No hay servicios para la fecha seleccionada.','bus')}</td></tr>`;
+  if (!rows || !rows.length) return `<tr><td colspan="8">${ui.emptyState('Sin colectivos cargados','No hay servicios para la fecha seleccionada.','bus')}</td></tr>`;
   return rows.map(s=>{
     const dir = s.direction==='vuelta'
       ? '<span class="badge purple">Vuelta</span>'
@@ -74,7 +74,7 @@ export default {
             <input type="date" id="dash-date" value="${date}">
           </div>
           <a class="btn btn-secondary" href="#/reports">${ui.icon('chart')} Reporte</a>
-          ${canWrite()?`<a class="btn" href="#/services">${ui.icon('plus')} Nuevo servicio</a>`:''}
+          ${canWrite()?`<a class="btn" href="#/colectivos">${ui.icon('plus')} Nuevo colectivo</a>`:''}
         </div>
       </div>
       <div id="dash-body"></div>`;
@@ -99,7 +99,7 @@ async function load(body, date){
 
     body.innerHTML = `
       <div class="grid grid-kpi" style="margin-bottom:16px">
-        ${kpi('Recaudación', ui.money(t.revenue), `${ui.integer(t.services)} servicios · ${ui.integer(t.tickets)} boletos`, 'coins', 'accent')}
+        ${kpi('Recaudación', ui.money(t.revenue), `${ui.integer(t.services)} salidas · ${ui.integer(t.tickets)} boletos`, 'coins', 'accent')}
         ${kpi('Sobrante', ui.money(t.surplus), 'Recaudación menos deducciones', 'chart', Number(t.surplus)<0?'red':'green')}
         ${kpi('Gasoil', ui.money(t.fuel_amount), `${ui.num(t.fuel_liters)} litros`, 'fuel', 'orange')}
         ${kpi('Km recorridos', ui.integer(t.km), `${ui.num(c.bus_km_per_liter,2)} km/l`, 'route')}
@@ -124,7 +124,7 @@ async function load(body, date){
 
       <div class="card" style="margin-bottom:16px">
         <div class="card-head">
-          <h3>Servicios del día</h3>
+          <h3>Colectivos del día</h3>
           <span class="hint">${ui.dateDMY(d.date)} · ${ui.integer(t.open_services)} abiertos</span>
         </div>
         <div class="table-wrap">
@@ -135,7 +135,7 @@ async function load(body, date){
         </div>
         <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center">
           <span class="tiny muted">Los montos están en pesos argentinos.</span>
-          <a class="btn btn-sm btn-secondary" href="#/services">Ver servicios ${ui.icon('arrow')}</a>
+          <a class="btn btn-sm btn-secondary" href="#/colectivos">Ver colectivos ${ui.icon('arrow')}</a>
         </div>
       </div>
 
@@ -162,3 +162,5 @@ async function load(body, date){
     ui.toast(ex.message,'err');
   }
 }
+
+

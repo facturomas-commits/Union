@@ -200,6 +200,9 @@ table.report-table{font-size:11px}
 table.report-table th{font-size:9.5px;padding:8px 8px}
 table.report-table td{padding:8px 8px}
 .table-actions{display:flex;gap:5px;justify-content:flex-end}
+table.data th.sticky-col,table.data td.sticky-col{position:sticky;right:0;background:#fff;z-index:2;box-shadow:-8px 0 10px -10px rgba(15,23,42,.35)}
+table.data th.sticky-col{background:#f8fafc;z-index:3}
+table.data tbody tr:hover td.sticky-col{background:#f8fbff}
 
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap;background:#f1f5f9;color:var(--text-2)}
 .badge.green{background:var(--green-soft);color:var(--green)}
@@ -364,3 +367,9 @@ table.report-table td{padding:8px 8px}
   a{color:#000}
 }
 .print-only{display:none}
+
+/* Vistas de reporte */
+.print-area.view-colectivos .r-truck,
+.print-area.view-colectivos .r-general{display:none}
+.print-area.view-camion .r-bus,
+.print-area.view-camion .r-general{display:none}

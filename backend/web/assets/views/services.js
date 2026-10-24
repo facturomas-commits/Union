@@ -1,4 +1,4 @@
-import { api, qs } from '../api.js';
+﻿import { api, qs } from '../api.js';
 import { state, canWrite } from '../store.js';
 import * as ui from '../ui.js';
 
@@ -6,13 +6,14 @@ let cats = null;
 
 async function loadCats(force=false){
   if (cats && !force) return cats;
-  const [vehicles, drivers, guards, routes] = await Promise.all([
+  const [vehicles, drivers, guards, routes, schedules] = await Promise.all([
     api.get('/vehicles'),
     api.get('/employees?kind=driver&active=1'),
     api.get('/employees?kind=guard&active=1'),
     api.get('/routes'),
+    api.get('/schedules?active=1'),
   ]);
-  cats = { vehicles: vehicles.filter(v=>v.active!==false), drivers, guards, routes: routes.filter(r=>r.active!==false) };
+  cats = { vehicles: vehicles.filter(v=>v.active!==false), drivers, guards, routes: routes.filter(r=>r.active!==false), schedules };
   return cats;
 }
 
@@ -33,8 +34,7 @@ function dirBadge(d){
 
 function rowHtml(s, canEdit){
   return `<tr>
-    <td class="nowrap">${ui.dateDMY(s.service_date)}</td>
-    <td>${dirBadge(s.direction)}</td>
+    <td class="nowrap">${ui.dateDMY(s.service_date)}<div class="sub">${dirBadge(s.direction)}</div></td>
     <td class="nowrap"><strong>${ui.timeHM(s.departure_time)}</strong><div class="sub">${ui.esc(s.schedule_label||'')}</div></td>
     <td><strong>#${ui.esc(s.vehicle_no)}</strong><div class="sub">${ui.esc(s.service_origin||'')} → ${ui.esc(s.service_destination||'')}</div></td>
     <td>${ui.esc(s.driver_name||'—')}<div class="sub">${ui.esc(s.guard_name||'')}</div></td>
@@ -44,7 +44,7 @@ function rowHtml(s, canEdit){
     <td class="num">${ui.money(deduction(s))}</td>
     <td class="num ${Number(s.surplus)<0?'neg':'pos'}"><strong>${ui.money(s.surplus)}</strong></td>
     <td>${ui.statusBadge(s.status)}</td>
-    <td><div class="table-actions">
+    <td class="sticky-col"><div class="table-actions">
       ${canEdit?`<button class="btn btn-sm btn-secondary btn-icon" data-edit="${s.id}" title="Editar">${ui.icon('edit',14)}</button>
       <button class="btn btn-sm btn-secondary btn-icon" data-close-svc="${s.id}" title="${s.status==='closed'?'Reabrir':'Cerrar'}">${ui.icon(s.status==='closed'?'refresh':'check',14)}</button>
       <button class="btn btn-sm btn-secondary btn-icon" data-del="${s.id}" title="Eliminar">${ui.icon('trash',14)}</button>`:''}
@@ -53,14 +53,14 @@ function rowHtml(s, canEdit){
 }
 
 export default {
-  title:'Servicios',
-  subtitle:'Libro diario de servicios, recaudación y cierre',
+  title:'Colectivos',
+  subtitle:'Libro diario de recaudación de colectivos',
   async render(root){
     const range = defaultRange();
     let c = await loadCats();
     root.innerHTML = `
       <div class="page-head">
-        <div><div class="page-title">Servicios</div><div class="page-sub">Libro diario de servicios, recaudación y cierre</div></div>
+        <div><div class="page-title">Colectivos</div><div class="page-sub">Libro diario de recaudación de colectivos</div></div>
         <div class="actions">
           ${canWrite()?`<button class="btn" id="btn-new">${ui.icon('plus')} Nuevo servicio</button>`:''}
         </div>
@@ -76,7 +76,7 @@ export default {
           <button class="btn btn-secondary" id="btn-reload">${ui.icon('refresh')} Actualizar</button>
         </div>
         <div class="table-wrap"><table class="data">
-          <thead><tr><th>Fecha</th><th>Dir.</th><th>Horario</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Deducciones</th><th class="num">Sobrante</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Horario</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Deducciones</th><th class="num">Sobrante</th><th>Estado</th><th class="sticky-col"></th></tr></thead>
           <tbody id="tbody"></tbody>
         </table></div>
         <div class="card-footer" id="foot"></div>
@@ -95,20 +95,20 @@ export default {
           direction: root.querySelector('#f-direction').value,
           status: root.querySelector('#f-status').value,
         }));
-        tbody.innerHTML = rows.length ? rows.map(s=>rowHtml(s, canWrite())).join('') : `<tr><td colspan="12">${ui.emptyState('Sin servicios','No hay servicios en el rango seleccionado.','bus')}</td></tr>`;
+        tbody.innerHTML = rows.length ? rows.map(s=>rowHtml(s, canWrite())).join('') : `<tr><td colspan="11">${ui.emptyState('Sin colectivos','No hay colectivos en el rango seleccionado.','bus')}</td></tr>`;
         const tot = rows.reduce((a,s)=>{
           a.rev += Number(s.revenue||0); a.fuel += Number(s.fuel_amount||0); a.ded += deduction(s); a.sur += Number(s.surplus||0); a.tickets += Number(s.tickets_count||0);
           return a;
         },{rev:0,fuel:0,ded:0,sur:0,tickets:0});
         foot.innerHTML = `<div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12px">
-          <span><b>${rows.length}</b> servicios · <b>${ui.integer(tot.tickets)}</b> boletos</span>
+          <span><b>${rows.length}</b> salidas · <b>${ui.integer(tot.tickets)}</b> boletos</span>
           <span>Recaudación <b>${ui.money(tot.rev)}</b> · Gasoil <b>${ui.money(tot.fuel)}</b> · Deducciones <b>${ui.money(tot.ded)}</b> · Sobrante <b class="${tot.sur<0?'neg':'pos'}">${ui.money(tot.sur)}</b></span>
         </div>`;
         tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openForm(Number(b.dataset.edit), onSaved));
         tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeService(Number(b.dataset.del), onSaved));
         tbody.querySelectorAll('[data-close-svc]').forEach(b=>b.onclick=()=>toggleClose(Number(b.dataset.closeSvc), rows.find(r=>r.id===Number(b.dataset.closeSvc)), onSaved));
       }catch(ex){
-        tbody.innerHTML = `<tr><td colspan="12">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
         ui.toast(ex.message,'err');
       }
     }
@@ -143,6 +143,7 @@ async function openForm(id, onDone){
   const body = `
     <div class="section-title">Servicio</div>
     <div class="form-grid cols-3">
+      <div class="field full"><label>Programación (opcional)</label><select name="schedule_id"><option value="">— Carga manual —</option>${ui.options(c.schedules,'id',s=>`${s.route_code||''} · ${s.direction==='vuelta'?'Vuelta':'Ida'} ${ui.timeHM(s.departure_time)} · #${s.vehicle_no}`, isEdit?d.schedule_id:'')}</select><div class="help">Al elegir un horario se completan ruta, dirección, coche, chofer, guarda y hora.</div></div>
       <div class="field"><label>Dirección *</label><select name="direction"><option value="ida" ${isEdit&&d.direction==='vuelta'?'':'selected'}>Ida</option><option value="vuelta" ${isEdit&&d.direction==='vuelta'?'selected':''}>Vuelta</option></select></div>
       <div class="field"><label>Fecha *</label><input name="service_date" type="date" value="${isEdit?d.service_date:state.today}" required></div>
       <div class="field"><label>Ruta *</label><select name="route_id" required>${ui.options(c.routes,'id',r=>`${r.code?r.code+' · ':''}${r.origin} → ${r.destination}`, isEdit?d.route_id:'')}</select></div>
@@ -210,6 +211,21 @@ async function openForm(id, onDone){
       const retBox=form.querySelector('#return-box');
       const toggleReturn=()=>{ retBox.style.display = dirSel.value==='ida' ? 'block' : 'none'; };
       dirSel.addEventListener('change',toggleReturn);
+      const scheduleSel=form.elements['schedule_id'];
+      scheduleSel.addEventListener('change',()=>{
+        const sc=c.schedules.find(x=>String(x.id)===String(scheduleSel.value));
+        if(!sc) return;
+        form.elements['route_id'].value=sc.route_id;
+        form.elements['direction'].value=sc.direction;
+        toggleReturn();
+        form.elements['vehicle_id'].value=sc.vehicle_id;
+        form.elements['driver_id'].value=sc.driver_id||'';
+        form.elements['guard_id'].value=sc.guard_id||'';
+        form.elements['departure_time'].value=ui.timeHM(sc.departure_time);
+        const route=c.routes.find(r=>String(r.id)===String(sc.route_id));
+        if(route) form.elements['km'].value=route.distance_km;
+        form.elements['schedule_label'].value=`${sc.direction==='vuelta'?'VUELTA':'IDA'} ${ui.timeHM(sc.departure_time)}`;
+      });
       toggleReturn();
       calc();
     },
@@ -223,6 +239,7 @@ async function openForm(id, onDone){
         departure_time: form.elements.departure_time.value || null,
         schedule_label: form.elements.schedule_label.value,
         direction: form.elements.direction.value,
+        schedule_id: form.elements.schedule_id.value ? Number(form.elements.schedule_id.value) : null,
         create_return: form.elements.direction.value==='ida' && ui.boolVal(form,'create_return'),
         return_departure_time: form.elements.return_departure_time.value || null,
         km: ui.numVal(form,'km'),
@@ -288,3 +305,4 @@ async function removeService(id, onDone){
   try{ await api.del('/services/'+id); ui.toast('Servicio eliminado','ok'); await onDone(); }
   catch(ex){ ui.toast(ex.message,'err'); }
 }
+

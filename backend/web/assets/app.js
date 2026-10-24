@@ -4,6 +4,7 @@ import { icon, initials, roleLabel, toast, openModal, formData } from './ui.js';
 import { renderLogin } from './views/login.js';
 
 import dashboard from './views/dashboard.js';
+import schedules from './views/schedules.js';
 import services from './views/services.js';
 import fuel from './views/fuel.js';
 import expenses from './views/expenses.js';
@@ -13,17 +14,29 @@ import reports from './views/reports.js';
 import masters from './views/masters.js';
 import audit from './views/audit.js';
 
-const views = { dashboard, services, fuel, expenses, maintenance, freight, reports, masters, audit };
+const views = {
+  dashboard,
+  schedules,
+  colectivos: services,
+  fuel,
+  expenses,
+  maintenance,
+  freight,
+  reports,
+  masters,
+  audit,
+};
 
 const NAV = [
   { group:'Operación', items:[
     { id:'dashboard', label:'Dashboard', icon:'dashboard' },
-    { id:'services', label:'Servicios', icon:'bus' },
-    { id:'fuel', label:'Combustible', icon:'fuel' },
-    { id:'expenses', label:'Gastos', icon:'receipt' },
+    { id:'schedules', label:'Servicios', icon:'calendar' },
+    { id:'colectivos', label:'Colectivos', icon:'bus' },
     { id:'freight', label:'Camión', icon:'truck' },
   ]},
   { group:'Flota', items:[
+    { id:'fuel', label:'Combustible', icon:'fuel' },
+    { id:'expenses', label:'Gastos', icon:'receipt' },
     { id:'maintenance', label:'Mantenimiento', icon:'wrench' },
     { id:'masters', label:'Maestros', icon:'settings' },
   ]},
@@ -84,7 +97,8 @@ function shell(current){
 function currentRoute(){
   const raw = (location.hash || '#/dashboard').replace(/^#\/?/, '');
   const [path] = raw.split('?');
-  const id = path || 'dashboard';
+  let id = path || 'dashboard';
+  if (id === 'services') id = 'colectivos';
   return views[id] ? id : 'dashboard';
 }
 

@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+﻿import { api } from '../api.js';
 import { state } from '../store.js';
 import * as ui from '../ui.js';
 
@@ -32,6 +32,11 @@ export default {
       <div class="page-head no-print">
         <div><div class="page-title">Reportes</div><div class="page-sub">Reporte diario y mensual, listo para imprimir o exportar</div></div>
         <div class="actions">
+          <div class="segmented" id="views">
+            <button class="active" data-view="general">General</button>
+            <button data-view="colectivos">Colectivos</button>
+            <button data-view="camion">Camión</button>
+          </div>
           <div class="segmented" id="tabs">
             <button class="active" data-tab="daily">Diario</button>
             <button data-tab="monthly">Mensual</button>
@@ -51,13 +56,23 @@ export default {
 
     const report=root.querySelector('#report');
     let tab='daily';
+    let view='general';
     const dateInput=root.querySelector('#r-date');
     const monthInput=root.querySelector('#r-month');
+    report.className='print-area view-general';
 
     async function load(){
+      report.className='print-area view-'+view;
       if(tab==='daily') await loadDaily(report,dateInput.value);
       else await loadMonthly(report,monthInput.value);
+      report.className='print-area view-'+view;
     }
+
+    root.querySelectorAll('#views button').forEach(b=>b.onclick=()=>{
+      view=b.dataset.view;
+      root.querySelectorAll('#views button').forEach(x=>x.classList.toggle('active',x===b));
+      report.className='print-area view-'+view;
+    });
 
     root.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
       tab=b.dataset.tab;
@@ -87,14 +102,21 @@ async function loadDaily(report,date){
       ${reportHead('REPORTE DIARIO DE OPERACIONES')}
       <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:12px">
         <div><b>Fecha:</b> ${ui.dateDMY(d.date)}</div>
-        <div><b>Servicios:</b> ${ui.integer(t.services)} · <b>Boletos:</b> ${ui.integer(t.tickets)} · <b>Km:</b> ${ui.integer(t.km)}</div>
+        <div><b>Salidas:</b> ${ui.integer(t.services)} · <b>Boletos:</b> ${ui.integer(t.tickets)} · <b>Km:</b> ${ui.integer(t.km)}</div>
       </div>
-      ${summary([
+      <div class="r-bus">${summary([
         ['Recaudación',ui.money(t.revenue),''],
         ['Gasoil',ui.money(t.fuel_amount),''],
         ['Deducciones',ui.money(ded),''],
         ['Sobrante',ui.money(t.surplus),t.surplus<0?'neg':'pos'],
-      ])}
+      ])}</div>
+      <div class="r-truck">${summary([
+        ['Camión neto',ui.money(ft.net_amount),''],
+        ['IVA',ui.money(ft.vat_amount),''],
+        ['Total',ui.money(ft.total_amount),''],
+        ['Comisión chofer',ui.money(ft.driver_commission),''],
+      ])}</div>
+      <div class="r-bus">
       <div class="report-section">
         <h4>Colectivos · servicios del día</h4>
         <div class="table-wrap"><table class="data report-table">
@@ -120,7 +142,9 @@ async function loadDaily(report,date){
           </tr></tfoot>
         </table></div>
       </div>
+      </div>
 
+      <div class="r-truck">
       <div class="report-section">
         <h4>Camión · viajes y remitos</h4>
         <div class="table-wrap"><table class="data">
@@ -134,7 +158,9 @@ async function loadDaily(report,date){
           <tfoot><tr style="background:#f8fafc;font-weight:900"><td colspan="3">TOTALES</td><td class="num">${ui.integer(ft.trips)}</td><td class="num">${ui.integer(ft.kilos)}</td><td class="num">${ui.money(ft.net_amount)}</td><td class="num">${ui.money(ft.vat_amount)}</td><td class="num">${ui.money(ft.total_amount)}</td><td class="num">${ui.money(ft.driver_commission)}</td><td class="num">${ui.integer(ft.km)}</td></tr></tfoot>
         </table></div>
       </div>
+      </div>
 
+      <div class="r-general">
       ${maint.length?`<div class="report-section"><h4>Mantenimiento del día</h4>
         <div class="table-wrap"><table class="data"><thead><tr><th>Coche</th><th>Rubro</th><th>Concepto</th><th>Medidas</th><th>Próximo cambio</th><th class="num">Costo</th></tr></thead>
         <tbody>${maint.map(m=>`<tr><td>#${ui.esc(m.vehicle_no)}</td><td>${ui.esc(m.category)}</td><td>${ui.esc(m.concept)}</td><td>${ui.esc(m.measures||'—')}</td><td>${m.next_due?ui.dateDMY(m.next_due):'—'}</td><td class="num">${ui.money(m.cost)}</td></tr>`).join('')}</tbody></table></div>
@@ -162,6 +188,7 @@ async function loadDaily(report,date){
         </div>
       </div>
       ${alerts.length?`<div class="report-section"><h4>Alertas (${(d.alerts||[]).length})</h4><div class="alert-list card">${alerts.map(a=>`<div class="alert-item"><div class="alert-ico ${a.kind==='negative_surplus'?'red':(a.kind==='open_service'?'blue':'')}">${ui.icon(a.kind==='maintenance'?'wrench':'alert')}</div><div><strong>${ui.esc(a.message)}</strong><span>Coche #${ui.esc(a.reference)}</span></div><div class="when">${a.kind==='maintenance'?(Number(a.days_left)<0?'Vencido hace '+Math.abs(a.days_left)+' d':'En '+a.days_left+' d'):''}</div></div>`).join('')}${(d.alerts||[]).length>6?`<div class="alert-item"><div class="alert-ico blue">${ui.icon('alert')}</div><div><strong>Hay ${(d.alerts||[]).length-6} alertas más</strong><span>Consulte la sección Mantenimiento para verlas todas.</span></div></div>`:''}</div></div>`:''}
+      </div>
       <div class="tiny muted" style="text-align:right">Documento generado por UNION · ${new Date().toLocaleString('es-AR')}</div>`;
   }catch(ex){
     report.innerHTML=`<div class="card">${ui.emptyState('No se pudo generar el reporte',ex.message,'alert')}</div>`;
@@ -179,14 +206,21 @@ async function loadMonthly(report,month){
       ${reportHead('REPORTE MENSUAL DE OPERACIONES')}
       <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:12px">
         <div><b>Período:</b> ${ui.esc(ui.monthLabel(m.month))}</div>
-        <div><b>Servicios:</b> ${ui.integer(t.services)} · <b>Boletos:</b> ${ui.integer(t.tickets)} · <b>Km:</b> ${ui.integer(c.total_km)}</div>
+        <div><b>Salidas:</b> ${ui.integer(t.services)} · <b>Boletos:</b> ${ui.integer(t.tickets)} · <b>Km:</b> ${ui.integer(c.total_km)}</div>
       </div>
-      ${summary([
+      <div class="r-bus">${summary([
         ['Recaudación',ui.money(t.revenue),''],
         ['Sobrante',ui.money(t.surplus),Number(t.surplus)<0?'neg':'pos'],
+        ['Boletos',ui.integer(t.tickets),''],
+        ['Km colectivos',ui.integer(t.km),''],
+      ])}</div>
+      <div class="r-truck">${summary([
         ['Camión neto',ui.money(ft.net_amount),''],
-        ['Margen',ui.money(c.margin),Number(c.margin)<0?'neg':'pos'],
-      ])}
+        ['IVA',ui.money(ft.vat_amount),''],
+        ['Total',ui.money(ft.total_amount),''],
+        ['Comisión chofer',ui.money(ft.driver_commission),''],
+      ])}</div>
+      <div class="r-bus">
       <div class="report-section">
         <h4>Evolución diaria</h4>
         <div class="card"><div class="card-body">${ui.lineChart(chartDays,[
@@ -204,6 +238,17 @@ async function loadMonthly(report,month){
         <div class="table-wrap"><table class="data"><thead><tr><th>Chofer</th><th class="num">Servicios</th><th class="num">Km</th><th class="num">Recaudación</th><th class="num">Sobrante</th></tr></thead>
         <tbody>${(m.drivers||[]).map(v=>`<tr><td>${ui.esc(v.driver_name)}</td><td class="num">${ui.integer(v.services)}</td><td class="num">${ui.integer(v.km)}</td><td class="num">${ui.money(v.revenue)}</td><td class="num">${ui.money(v.surplus)}</td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Sin datos</td></tr>`}</tbody></table></div>
       </div>
+      </div>
+
+      <div class="r-truck">
+      <div class="report-section">
+        <h4>Días con camión</h4>
+        <div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th class="num">Neto</th><th class="num">Total</th><th class="num">Comisión</th></tr></thead>
+        <tbody>${days.filter(d=>Number(d.freight_net)||Number(d.freight_total)).map(d=>`<tr><td>${ui.dateDMY(d.date)}</td><td class="num">${ui.money(d.freight_net)}</td><td class="num">${ui.money(d.freight_total)}</td><td class="num">${ui.money(d.freight_commission)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">Sin viajes</td></tr>`}</tbody></table></div>
+      </div>
+      </div>
+
+      <div class="r-general">
       <div class="report-section">
         <h4>Días con movimiento</h4>
         <div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Sobrante</th><th class="num">Boletos</th><th class="num">Km</th><th class="num">Camión neto</th><th class="num">Mantenimiento</th><th class="num">Gastos grales</th></tr></thead>
@@ -218,8 +263,10 @@ async function loadMonthly(report,month){
           <div class="summary-cell"><div class="l">Km totales</div><div class="v">${ui.integer(c.total_km)}</div></div>
         </div>
       </div>
+      </div>
       <div class="tiny muted" style="text-align:right">Documento generado por UNION · ${new Date().toLocaleString('es-AR')}</div>`;
   }catch(ex){
     report.innerHTML=`<div class="card">${ui.emptyState('No se pudo generar el reporte',ex.message,'alert')}</div>`;
   }
 }
+

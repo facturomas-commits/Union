@@ -1,5 +1,10 @@
 # Reportes
 
+La pantalla de Reportes tiene dos selectores:
+
+- **Diario / Mensual**
+- **General / Colectivos / Camión** (cada uno muestra solo su operación)
+
 ## Reporte diario
 
 Fuente: `v_services`, `v_freight_trips`, `v_maintenance`.

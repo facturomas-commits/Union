@@ -8,7 +8,7 @@ implementation
 
 uses
   Horse,
-  UAuth, UCatalogRoutes, UOpsRoutes, UFreightRoutes, UReportRoutes, UWeb;
+  UAuth, UCatalogRoutes, UScheduleRoutes, UOpsRoutes, UFreightRoutes, UReportRoutes, UWeb;
 
 procedure RegisterRoutes;
 begin
@@ -23,6 +23,7 @@ begin
 
   // Módulos
   RegisterCatalogRoutes;
+  RegisterScheduleRoutes;
   RegisterOpsRoutes;
   RegisterFreightRoutes;
   RegisterReportRoutes;

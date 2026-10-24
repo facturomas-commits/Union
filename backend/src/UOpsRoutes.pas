@@ -11,7 +11,7 @@ uses
   Horse, UHttp, UAuth, UApi, UDB, ULog;
 
 const
-  SERVICE_FIELDS: array[0..13] of TFieldDef = (
+  SERVICE_FIELDS: array[0..14] of TFieldDef = (
     (Name: 'service_date';   Kind: fkDate; Required: True),
     (Name: 'route_id';       Kind: fkInt;  Required: True),
     (Name: 'vehicle_id';     Kind: fkInt;  Required: True),
@@ -25,7 +25,8 @@ const
     (Name: 'fare_total';     Kind: fkNum;  Required: False),
     (Name: 'notes';          Kind: fkText; Required: False),
     (Name: 'direction';      Kind: fkText; Required: False),
-    (Name: 'return_of_id';   Kind: fkInt;  Required: False)
+    (Name: 'return_of_id';   Kind: fkInt;  Required: False),
+    (Name: 'schedule_id';    Kind: fkInt;  Required: False)
   );
 
   FUEL_FIELDS: array[0..9] of TFieldDef = (
@@ -283,6 +284,10 @@ begin
     if TDB.QInt('select count(*) from vehicles where id = :p0 and company_id = :p1',
       [LVehicle, LCompany]) = 0 then
     begin SendError(Res, 'Vehículo inválido para la empresa', 400); Exit; end;
+    if (GetInt(LBody, 'schedule_id', 0) > 0) and
+       (TDB.QInt('select count(*) from service_schedules where id = :p0 and company_id = :p1',
+         [GetInt(LBody, 'schedule_id', 0), LCompany]) = 0) then
+    begin SendError(Res, 'Programación inválida para la empresa', 400); Exit; end;
 
     TDB.BeginTx;
     try
@@ -348,6 +353,10 @@ begin
        (TDB.QInt('select count(*) from vehicles where id = :p0 and company_id = :p1',
          [GetInt(LBody, 'vehicle_id', 0), LCompany]) = 0) then
     begin SendError(Res, 'Vehículo inválido para la empresa', 400); Exit; end;
+    if Has(LBody, 'schedule_id') and (GetInt(LBody, 'schedule_id', 0) > 0) and
+       (TDB.QInt('select count(*) from service_schedules where id = :p0 and company_id = :p1',
+         [GetInt(LBody, 'schedule_id', 0), LCompany]) = 0) then
+    begin SendError(Res, 'Programación inválida para la empresa', 400); Exit; end;
 
     TDB.BeginTx;
     try
