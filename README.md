@@ -20,8 +20,8 @@ Sistema web de gestión operativa y financiera para una empresa de transporte de
 | **Combustible** | Cargas de gasoil por vehículo, litros, importe, odómetro y tanque lleno |
 | **Gastos** | Oncológico, boleterías, Mercado Pago y otros, asociados o no a un servicio |
 | **Camión** | Viajes con remitos, kilos, tarifa, neto, IVA 21 %, total y comisión del chofer 15 % |
-| **Mantenimiento** | Reparaciones, services y próximos cambios, con alertas de vencimiento |
-| **Maestros** | Vehículos, empleados (choferes/guardas), rutas, usuarios y configuración |
+| **Mantenimiento** | Programar, presupuestar y marcar realizado; taller y teléfono de contacto; alertas de vencimiento |
+| **Maestros** | Vehículos, empleados (choferes/guardas), rutas, talleres, usuarios y configuración |
 | **Reportes** | Vistas General / Colectivos / Camión, diaria y mensual, con impresión y CSV |
 | **Auditoría** | Registro de accesos, altas, modificaciones, bajas y cierres |
 
@@ -138,7 +138,8 @@ Union/
 - **Servicios vs. Colectivos:** Servicios es la programación de horarios/turnos; Colectivos es la operación diaria con recaudación y cierre.
 - **Camión:** neto = tarifa × kilos / 1000; IVA = neto × 21 %; total = neto + IVA; comisión chofer = neto × 15 % (configurable).
 - **Cierre:** se registra el efectivo entregado y la diferencia contra el sobrante calculado.
-- **Alertas:** mantenimientos con `next_due` dentro de los días configurados, servicios abiertos y servicios con sobrante negativo.
+- **Alertas:** vencimientos de mantenimiento, servicios programados/presupuestados, servicios abiertos y servicios con sobrante negativo. Las alertas de vencimiento permiten **Programar** directamente un nuevo servicio para el coche/camión.
+- **Flujo de mantenimiento:** programar (fecha, vehículo, taller, presupuesto) → presupuestar → **Marcar realizado**. Al marcarlo, queda en el historial como servicio realizado y se usa para el próximo vencimiento.
 
 Ver detalle en [`docs/reportes.md`](docs/reportes.md).
 
@@ -178,7 +179,7 @@ Ver detalle y valores por defecto en [`docs/permisos.md`](docs/permisos.md).
 
 ## 8. Estado y próximos pasos
 
-Implementado: autenticación, roles, auditoría, maestros, servicios con combustible/gastos, cierre, combustible, gastos, mantenimiento con alertas, alertas del dashboard con acceso directo a la ficha para atender, listado completo de alertas, camión con remitos, reportes diario/mensual, CSV, impresión/PDF, migración de la planilla.
+Implementado: autenticación, roles, auditoría, maestros con talleres y teléfonos, servicios con combustible/gastos, cierre, combustible, gastos, mantenimiento con flujo **programar → presupuestar → marcar realizado**, alertas del dashboard con acceso directo a programar el servicio, listado completo de alertas, camión con remitos, reportes diario/mensual, CSV, impresión/PDF, migración de la planilla.
 
 Pendiente / recomendado:
 

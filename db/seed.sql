@@ -4,7 +4,7 @@
 -- ============================================================
 BEGIN;
 TRUNCATE audit_log, sessions, service_closings, service_expenses,
-         fuel_loads, freight_items, freight_trips, maintenance,
+         fuel_loads, freight_items, freight_trips, maintenance, workshops,
          services, service_schedules, routes, vehicles, employees, settings, users, companies
          RESTART IDENTITY CASCADE;
 

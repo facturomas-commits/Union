@@ -53,11 +53,14 @@ Km totales   = km colectivos + km camión
 
 ## Alertas
 
-| Tipo | Regla |
-|---|---|
-| Mantenimiento | `next_due <= current_date + maintenance_alert_days` |
-| Sobrante negativo | servicio del día con `surplus < 0` |
-| Servicio abierto | `status = 'open'` en la fecha |
+| Tipo | Regla | Acción rápida |
+|---|---|---|
+| Vencimiento de mantenimiento | último servicio realizado por vehículo/rubro con `next_due <= current_date + maintenance_alert_days` | **Programar** un nuevo servicio con vehículo, rubro y taller precargados |
+| Servicio programado/presupuestado | `status in ('programado','presupuestado')` | **Abrir** la programación para presupuestar o marcar realizado |
+| Sobrante negativo | servicio del día con `surplus < 0` | **Revisar** el servicio |
+| Servicio abierto | `status = 'open'` en la fecha | **Revisar** el servicio |
+
+Los vencimientos se calculan solo con el último servicio realizado de cada vehículo/rubro, para no seguir mostrando alertas de servicios ya reemplazados. Si hay una orden programada o presupuestada para ese vehículo/rubro, el vencimiento se oculta hasta completarla o cancelarla.
 
 ## Exportación
 

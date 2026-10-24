@@ -121,7 +121,7 @@ def main():
     add("-- ============================================================")
     add("BEGIN;")
     add("TRUNCATE audit_log, sessions, service_closings, service_expenses,")
-    add("         fuel_loads, freight_items, freight_trips, maintenance,")
+    add("         fuel_loads, freight_items, freight_trips, maintenance, workshops,")
     add("         services, service_schedules, routes, vehicles, employees, settings, users, companies")
     add("         RESTART IDENTITY CASCADE;")
     add("")

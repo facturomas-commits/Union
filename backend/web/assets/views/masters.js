@@ -7,6 +7,7 @@ const TABS=[
   {id:'vehicles',label:'Vehículos',module:'masters'},
   {id:'employees',label:'Empleados',module:'masters'},
   {id:'routes',label:'Rutas',module:'masters'},
+  {id:'workshops',label:'Talleres',module:'masters'},
   {id:'users',label:'Usuarios',module:'users',admin:true},
   {id:'settings',label:'Configuración',module:'settings',admin:true},
 ];
@@ -37,6 +38,7 @@ export default {
         if(id==='vehicles') await vehiclesTab(pane,actions,()=>show('vehicles'));
         else if(id==='employees') await employeesTab(pane,actions,()=>show('employees'));
         else if(id==='routes') await routesTab(pane,actions,()=>show('routes'));
+        else if(id==='workshops') await workshopsTab(pane,actions,()=>show('workshops'));
         else if(id==='users') await usersTab(pane,actions,()=>show('users'));
         else if(id==='settings') await settingsTab(pane,actions);
       }catch(ex){
@@ -186,6 +188,50 @@ function routeForm(r,reload){
       if(!p.name||!p.origin||!p.destination) throw new Error('Complete nombre, origen y destino');
       if(isEdit) await api.put('/routes/'+r.id,p); else await api.post('/routes',p);
       ui.toast(isEdit?'Ruta actualizada':'Ruta creada','ok'); close(); await reload();
+    }
+  });
+}
+
+/* ---------------- Talleres ---------------- */
+async function workshopsTab(pane,actions,reload){
+  const rows=await api.get('/workshops');
+  if(canWrite()) actions.innerHTML=`<button class="btn" id="add">${ui.icon('plus')} Nuevo taller</button>`;
+  pane.innerHTML=`<div class="table-wrap"><table class="data">
+    <thead><tr><th>Taller</th><th>Teléfono</th><th>Dirección</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${rows.length?rows.map(w=>`<tr>
+      <td><strong>${ui.esc(w.name)}</strong></td>
+      <td>${w.phone?ui.phoneLink(w.phone):'<span class="muted">—</span>'}</td>
+      <td>${ui.esc(w.address||'—')}</td>
+      <td>${ui.esc(w.notes||'—')}</td>
+      <td>${w.active?'<span class="badge green">Activo</span>':'<span class="badge gray">Inactivo</span>'}</td>
+      <td><div class="table-actions">${canWrite()?`
+        <button class="btn btn-sm btn-secondary btn-icon" data-edit="${w.id}" title="Editar">${ui.icon('edit',14)}</button>
+        <button class="btn btn-sm btn-secondary btn-icon" data-del="${w.id}" title="Desactivar">${ui.icon('trash',14)}</button>`:''}</div></td>
+    </tr>`).join(''):`<tr><td colspan="6">${ui.emptyState('Sin talleres','Cargue el taller o proveedor donde se hacen los servicios.','wrench')}</td></tr>`}</tbody>
+  </table></div>`;
+  if(canWrite()) actions.querySelector('#add').onclick=()=>workshopForm(null,reload);
+  pane.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>workshopForm(rows.find(w=>w.id===Number(b.dataset.edit)),reload));
+  pane.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>softDelete('workshops',b.dataset.del,reload,'Desactivar taller','El taller quedará inactivo y no aparecerá en el formulario de mantenimiento.'));
+}
+
+function workshopForm(w,reload){
+  const isEdit=!!w,d=w||{};
+  ui.openModal({
+    title:isEdit?'Editar taller':'Nuevo taller',
+    subtitle:'Datos de contacto para llamar rápido desde mantenimiento.',
+    body:`<div class="form-grid cols-2">
+      <div class="field full"><label>Nombre del taller / proveedor *</label><input name="name" value="${ui.esc(d.name||'')}" required></div>
+      <div class="field"><label>Teléfono</label><input name="phone" value="${ui.esc(d.phone||'')}" placeholder="Ej: 3764 123456"></div>
+      <div class="field"><label>Dirección</label><input name="address" value="${ui.esc(d.address||'')}"></div>
+      <div class="field full"><label>Notas</label><textarea name="notes">${ui.esc(d.notes||'')}</textarea></div>
+      <div class="field"><label>Activo</label><label class="check"><input type="checkbox" name="active" ${d.active!==false?'checked':''}> Sí</label></div>
+    </div>`,
+    async onSubmit(form,close){
+      const p={name:form.elements.name.value,phone:form.elements.phone.value,address:form.elements.address.value,
+        notes:form.elements.notes.value,active:ui.boolVal(form,'active')};
+      if(!p.name) throw new Error('Ingrese el nombre del taller');
+      if(isEdit) await api.put('/workshops/'+w.id,p); else await api.post('/workshops',p);
+      ui.toast(isEdit?'Taller actualizado':'Taller creado','ok'); close(); await reload();
     }
   });
 }

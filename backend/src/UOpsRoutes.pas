@@ -51,7 +51,7 @@ const
     (Name: 'amount';       Kind: fkNum;  Required: False)
   );
 
-  MAINT_FIELDS: array[0..8] of TFieldDef = (
+  MAINT_FIELDS: array[0..11] of TFieldDef = (
     (Name: 'vehicle_id';       Kind: fkInt;  Required: True),
     (Name: 'maintenance_date'; Kind: fkDate; Required: True),
     (Name: 'category';         Kind: fkText; Required: True),
@@ -60,6 +60,9 @@ const
     (Name: 'next_due';         Kind: fkDate; Required: False),
     (Name: 'odometer';         Kind: fkNum;  Required: False),
     (Name: 'cost';             Kind: fkNum;  Required: False),
+    (Name: 'budget_amount';    Kind: fkNum;  Required: False),
+    (Name: 'status';           Kind: fkText; Required: False),
+    (Name: 'workshop_id';      Kind: fkInt;  Required: False),
     (Name: 'notes';            Kind: fkText; Required: False)
   );
 
@@ -81,6 +84,20 @@ end;
 function ValidDirection(const AValue: string): Boolean;
 begin
   Result := (AValue = 'ida') or (AValue = 'vuelta');
+end;
+
+function ValidMaintenanceStatus(const AValue: string): Boolean;
+begin
+  Result := (AValue = 'programado') or (AValue = 'presupuestado') or
+            (AValue = 'realizado') or (AValue = 'cancelado');
+end;
+
+function WorkshopExists(AWorkshopId, ACompany: Integer): Boolean;
+begin
+  if AWorkshopId <= 0 then
+    Exit(True);
+  Result := TDB.QInt('select count(*) from workshops where id = :p0 and company_id = :p1',
+    [AWorkshopId, ACompany]) > 0;
 end;
 
 function CreateReturnFor(AOutboundId, ACompany: Integer; const AReturnTime: string;
@@ -720,9 +737,10 @@ var
   LSQL: string;
   LParams: TArray<Variant>;
   LVehicle, LDays: Integer;
-  LDue: string;
+  LDue, LStatus: string;
 begin
   LDue := QueryValue(Req, 'due', '');
+  LStatus := QueryValue(Req, 'status', '');
   LVehicle := QueryInt(Req, 'vehicle_id', 0);
   LDays := QueryInt(Req, 'days', AlertDays(EffectiveCompany(Req)));
 
@@ -736,9 +754,15 @@ begin
     SetLength(LParams, Length(LParams) + 1);
     LParams[High(LParams)] := LVehicle;
   end;
+  if not LStatus.IsEmpty and ValidMaintenanceStatus(LStatus) then
+  begin
+    LSQL := LSQL + ' and status = :p' + IntToStr(Length(LParams));
+    SetLength(LParams, Length(LParams) + 1);
+    LParams[High(LParams)] := LStatus;
+  end;
   if LDue = '1' then
   begin
-    LSQL := LSQL + ' and next_due is not null and next_due <= current_date + :p' + IntToStr(Length(LParams)) + '::int';
+    LSQL := LSQL + ' and status = ''realizado'' and next_due is not null and next_due <= current_date + :p' + IntToStr(Length(LParams)) + '::int';
     SetLength(LParams, Length(LParams) + 1);
     LParams[High(LParams)] := LDays;
     LSQL := LSQL + ' order by next_due) t';
@@ -764,6 +788,12 @@ begin
     LVehicle := GetInt(LBody, 'vehicle_id', 0);
     if TDB.QInt('select count(*) from vehicles where id = :p0 and company_id = :p1', [LVehicle, LCompany]) = 0 then
     begin SendError(Res, 'Vehículo inválido', 400); Exit; end;
+    if not Has(LBody, 'status') then
+      LBody.AddPair('status', 'programado');
+    if not ValidMaintenanceStatus(GetStr(LBody, 'status', 'programado')) then
+    begin SendError(Res, 'Estado de mantenimiento inválido', 400); Exit; end;
+    if not WorkshopExists(GetInt(LBody, 'workshop_id', 0), LCompany) then
+    begin SendError(Res, 'Taller inválido', 400); Exit; end;
     if not InsertRow('maintenance', MAINT_FIELDS, LBody, LCompany, LId, LErr) then
     begin SendError(Res, LErr, 400); Exit; end;
     TDB.Exec('update maintenance set created_by = :p0 where id = :p1', [GAuth.UserId, LId]);
@@ -792,9 +822,46 @@ begin
        (TDB.QInt('select count(*) from vehicles where id = :p0 and company_id = :p1',
          [GetInt(LBody, 'vehicle_id', 0), LCompany]) = 0) then
     begin SendError(Res, 'Vehículo inválido', 400); Exit; end;
+    if Has(LBody, 'status') and (not ValidMaintenanceStatus(GetStr(LBody, 'status'))) then
+    begin SendError(Res, 'Estado de mantenimiento inválido', 400); Exit; end;
+    if Has(LBody, 'workshop_id') and (not WorkshopExists(GetInt(LBody, 'workshop_id', 0), LCompany)) then
+    begin SendError(Res, 'Taller inválido', 400); Exit; end;
     if not UpdateRow('maintenance', MAINT_FIELDS, LBody, LId, LCompany, LErr) then
     begin SendError(Res, LErr, 400); Exit; end;
     AuditAction('update', 'maintenance', LId, '{}');
+    SendSaved(Res, LId);
+  except
+    on E: Exception do SendError(Res, E.Message, 500);
+  end;
+  LBody.Free;
+end;
+
+procedure CompleteMaintenance(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+var
+  LBody: TJSONObject;
+  LErr: string;
+  LId, LCompany, LVehicle: Integer;
+  LOdo: Double;
+begin
+  if not RequireWrite(Res) then Exit;
+  LBody := nil;
+  try
+    if not ParseBodyObject(Req, LBody, LErr) then begin SendError(Res, LErr, 400); Exit; end;
+    LId := StrToIntDef(ParamValue(Req, 'id', '0'), 0);
+    LCompany := BodyCompany(Req, LBody);
+    if not Has(LBody, 'maintenance_date') then
+      LBody.AddPair('maintenance_date', FormatDateTime('yyyy-mm-dd', Date));
+    LBody.RemovePair('status').Free;
+    LBody.AddPair('status', 'realizado');
+    if not UpdateRow('maintenance', MAINT_FIELDS, LBody, LId, LCompany, LErr) then
+    begin SendError(Res, LErr, 400); Exit; end;
+    LVehicle := TDB.QInt('select vehicle_id from maintenance where id = :p0 and company_id = :p1',
+      [LId, LCompany]);
+    LOdo := GetNum(LBody, 'odometer', 0);
+    if (LVehicle > 0) and (LOdo > 0) then
+      TDB.Exec('update vehicles set odometer = greatest(odometer, :p0) where id = :p1 and company_id = :p2',
+        [LOdo, LVehicle, LCompany]);
+    AuditAction('complete', 'maintenance', LId, '{}');
     SendSaved(Res, LId);
   except
     on E: Exception do SendError(Res, E.Message, 500);
@@ -838,6 +905,7 @@ begin
   THorse.Get('/api/maintenance/:id', GetMaintenance);
   THorse.Post('/api/maintenance', CreateMaintenance);
   THorse.Put('/api/maintenance/:id', UpdateMaintenance);
+  THorse.Post('/api/maintenance/:id/complete', CompleteMaintenance);
   THorse.Delete('/api/maintenance/:id', DeleteMaintenance);
 end;
 

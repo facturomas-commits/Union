@@ -229,7 +229,7 @@ begin
 end;
 
 const
-  FINANCIAL_KEYS: array[0..45] of string = (
+  FINANCIAL_KEYS: array[0..46] of string = (
     'price', 'fare_total', 'revenue', 'revenue_ida', 'revenue_vuelta',
     'fuel_amount', 'oncology_amount', 'ticket_office_amount', 'mp_amount', 'other_amount',
     'surplus', 'amount', 'total_amount', 'net_amount', 'vat_amount', 'driver_commission',
@@ -237,7 +237,7 @@ const
     'base_fare', 'per_km', 'max_fare', 'price_per_liter', 'tariff', 'commission_pct', 'vat_pct',
     'bus_revenue', 'bus_fuel', 'bus_deductions', 'bus_surplus',
     'freight_net', 'freight_vat', 'freight_total', 'freight_commission',
-    'maintenance', 'maintenance_total', 'total_mantenimiento', 'total_combustible',
+    'maintenance', 'maintenance_total', 'total_mantenimiento', 'total_combustible', 'budget_amount',
     'general_total', 'general_expenses', 'general',
     'abono_price', 'total_abonos', 'total_cobros'
   );
@@ -331,6 +331,8 @@ begin  LPath := APath.ToLower;
   if LPath.StartsWith('/api/fuel') then Exit(GAuth.HasModule('fuel'));
   if LPath.StartsWith('/api/expenses') then Exit(GAuth.HasModule('expenses'));
   if LPath.StartsWith('/api/maintenance') then Exit(GAuth.HasModule('maintenance'));
+  if LPath.StartsWith('/api/workshops') then
+    Exit(GAuth.HasAnyModule(['maintenance', 'masters']));
   if LPath.StartsWith('/api/freight') then Exit(GAuth.HasModule('camion'));
 
   if LPath.StartsWith('/api/reports/audit') then Exit(GAuth.HasModule('audit'));

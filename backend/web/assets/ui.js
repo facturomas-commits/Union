@@ -20,6 +20,13 @@ export function money(n){
   const v = Number(n);
   return moneyFmt.format(Number.isFinite(v) ? v : 0);
 }
+
+export function phoneLink(phone){
+  const value=String(phone||'').trim();
+  if(!value) return '—';
+  const dial=value.replace(/[^\d+]/g,'');
+  return `<a class="phone-link" href="tel:${esc(dial)}" title="Llamar">${icon('phone',13)} ${esc(value)}</a>`;
+}
 export function num(n, d=2){
   const v = Number(n);
   if (!Number.isFinite(v)) return '0,00';
@@ -121,6 +128,7 @@ const ICONS = {
   route:'<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h4a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/>',
   coins:'<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
   file:'<path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>',
 };
 
 export function icon(name, size=16){

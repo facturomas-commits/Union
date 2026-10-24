@@ -45,6 +45,14 @@ const
     (Name: 'active';       Kind: fkBool; Required: False)
   );
 
+  WORKSHOP_FIELDS: array[0..4] of TFieldDef = (
+    (Name: 'name';    Kind: fkText; Required: True),
+    (Name: 'phone';   Kind: fkText; Required: False),
+    (Name: 'address'; Kind: fkText; Required: False),
+    (Name: 'notes';   Kind: fkText; Required: False),
+    (Name: 'active';  Kind: fkBool; Required: False)
+  );
+
   USER_FIELDS: array[0..5] of TFieldDef = (
     (Name: 'username';              Kind: fkText; Required: False),
     (Name: 'full_name';             Kind: fkText; Required: False),
@@ -328,6 +336,77 @@ begin
     SendError(Res, LErr, 400);
 end;
 
+{ ---------------- TALLERES ---------------- }
+
+procedure ListWorkshops(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+var
+  LSQL: string;
+begin
+  LSQL := 'select coalesce(json_agg(row_to_json(t)), ''[]'') from (' +
+    'select * from v_workshops where company_id = :p0';
+  if QueryValue(Req, 'active', '') = '1' then
+    LSQL := LSQL + ' and active = true';
+  LSQL := LSQL + ' order by name) t';
+  SendList(Res, LSQL, [EffectiveCompany(Req)]);
+end;
+
+procedure GetWorkshop(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+begin
+  SendEntity(Res, 'v_workshops', StrToIntDef(ParamValue(Req, 'id', '0'), 0), EffectiveCompany(Req));
+end;
+
+procedure CreateWorkshop(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+var LBody: TJSONObject; LErr: string; LId, LCompany: Integer;
+begin
+  if not RequireWrite(Res) then Exit;
+  LBody := nil;
+  try
+    if not ParseBodyObject(Req, LBody, LErr) then begin SendError(Res, LErr, 400); Exit; end;
+    if GetStr(LBody, 'name').Trim.IsEmpty then
+    begin SendError(Res, 'El nombre del taller es obligatorio', 400); Exit; end;
+    LCompany := BodyCompany(Req, LBody);
+    if not InsertRow('workshops', WORKSHOP_FIELDS, LBody, LCompany, LId, LErr) then
+    begin SendError(Res, LErr, 400); Exit; end;
+    AuditAction('create', 'workshop', LId, '{}');
+    SendCreated(Res, LId);
+  except
+    on E: Exception do SendError(Res, E.Message, 500);
+  end;
+  LBody.Free;
+end;
+
+procedure UpdateWorkshop(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+var LBody: TJSONObject; LErr: string; LId, LCompany: Integer;
+begin
+  if not RequireWrite(Res) then Exit;
+  LBody := nil;
+  try
+    if not ParseBodyObject(Req, LBody, LErr) then begin SendError(Res, LErr, 400); Exit; end;
+    if Has(LBody, 'name') and GetStr(LBody, 'name').Trim.IsEmpty then
+    begin SendError(Res, 'El nombre del taller es obligatorio', 400); Exit; end;
+    LId := StrToIntDef(ParamValue(Req, 'id', '0'), 0);
+    LCompany := BodyCompany(Req, LBody);
+    if not UpdateRow('workshops', WORKSHOP_FIELDS, LBody, LId, LCompany, LErr) then
+    begin SendError(Res, LErr, 400); Exit; end;
+    AuditAction('update', 'workshop', LId, '{}');
+    SendSaved(Res, LId);
+  except
+    on E: Exception do SendError(Res, E.Message, 500);
+  end;
+  LBody.Free;
+end;
+
+procedure DeleteWorkshop(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+var LErr: string; LId: Integer;
+begin
+  if not RequireWrite(Res) then Exit;
+  LId := StrToIntDef(ParamValue(Req, 'id', '0'), 0);
+  if DeleteRow('workshops', 'workshop', LId, EffectiveCompany(Req), False, LErr) then
+    SendDeleted(Res)
+  else
+    SendError(Res, LErr, 400);
+end;
+
 { ---------------- USUARIOS ---------------- }
 
 procedure ListUsers(Req: THorseRequest; Res: THorseResponse; Next: TProc);
@@ -595,6 +674,12 @@ begin
   THorse.Post('/api/routes', CreateRoute);
   THorse.Put('/api/routes/:id', UpdateRoute);
   THorse.Delete('/api/routes/:id', DeleteRoute);
+
+  THorse.Get('/api/workshops', ListWorkshops);
+  THorse.Get('/api/workshops/:id', GetWorkshop);
+  THorse.Post('/api/workshops', CreateWorkshop);
+  THorse.Put('/api/workshops/:id', UpdateWorkshop);
+  THorse.Delete('/api/workshops/:id', DeleteWorkshop);
 
   THorse.Get('/api/users', ListUsers);
   THorse.Post('/api/users', CreateUser);

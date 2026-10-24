@@ -266,6 +266,23 @@ CREATE TABLE IF NOT EXISTS service_closings (
 );
 
 -- ------------------------------------------------------------
+-- TALLERES / PROVEEDORES DE MANTENIMIENTO
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS workshops (
+  id          SERIAL PRIMARY KEY,
+  company_id  INTEGER NOT NULL REFERENCES companies(id),
+  name        VARCHAR(120) NOT NULL,
+  phone       VARCHAR(80),
+  address     VARCHAR(200),
+  notes       VARCHAR(300),
+  active      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_workshops_company_name ON workshops(company_id, lower(name));
+CREATE INDEX IF NOT EXISTS idx_workshops_company ON workshops(company_id, name);
+
+-- ------------------------------------------------------------
 -- MANTENIMIENTO
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS maintenance (
@@ -279,14 +296,22 @@ CREATE TABLE IF NOT EXISTS maintenance (
   next_due          DATE,
   odometer          NUMERIC(12,1),
   cost              NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (cost >= 0),
+  budget_amount     NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (budget_amount >= 0),
+  status            VARCHAR(20) NOT NULL DEFAULT 'realizado'
+                    CHECK (status IN ('programado','presupuestado','realizado','cancelado')),
+  workshop_id       INTEGER REFERENCES workshops(id) ON DELETE SET NULL,
   notes             VARCHAR(300),
   created_by        INTEGER REFERENCES users(id),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE maintenance ADD COLUMN IF NOT EXISTS budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE maintenance ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'realizado';
+ALTER TABLE maintenance ADD COLUMN IF NOT EXISTS workshop_id INTEGER REFERENCES workshops(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_maint_company_date ON maintenance(company_id, maintenance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_maint_vehicle ON maintenance(vehicle_id, maintenance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_maint_due ON maintenance(next_due) WHERE next_due IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maint_status ON maintenance(company_id, status, maintenance_date DESC);
 
 -- ------------------------------------------------------------
 -- CAMIÓN / FLETES
@@ -484,11 +509,19 @@ FROM service_expenses e
 LEFT JOIN services s ON s.id = e.service_id
 LEFT JOIN vehicles v ON v.id = e.vehicle_id;
 
-CREATE OR REPLACE VIEW v_maintenance AS
+CREATE OR REPLACE VIEW v_workshops AS
+SELECT w.*, c.name AS company_name
+FROM workshops w
+JOIN companies c ON c.id = w.company_id;
+
+DROP VIEW IF EXISTS v_maintenance;
+CREATE VIEW v_maintenance AS
 SELECT m.*, v.internal_no AS vehicle_no, v.plate,
+       w.name AS workshop_name, w.phone AS workshop_phone, w.address AS workshop_address,
        CASE WHEN m.next_due IS NOT NULL THEN (m.next_due - CURRENT_DATE) ELSE NULL END AS days_left
 FROM maintenance m
-JOIN vehicles v ON v.id = m.vehicle_id;
+JOIN vehicles v ON v.id = m.vehicle_id
+LEFT JOIN workshops w ON w.id = m.workshop_id;
 
 CREATE OR REPLACE VIEW v_freight_items AS
 SELECT i.*, t.trip_date, t.vehicle_id, t.driver_id,

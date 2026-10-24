@@ -26,6 +26,8 @@ Los endpoints de cada módulo verifican `allowed_modules`. Si el módulo no est�
 | GET/PUT/DELETE | `/employees/:id` |
 | GET/POST | `/routes` |
 | GET/PUT/DELETE | `/routes/:id` |
+| GET/POST | `/workshops?active=1` |
+| GET/PUT/DELETE | `/workshops/:id` |
 | GET/POST | `/users` (admin) |
 | PUT/DELETE | `/users/:id` (admin) |
 | GET/POST | `/companies` (admin/super) |
@@ -61,9 +63,10 @@ La ida y la vuelta son horarios separados dentro de la misma ruta.
 | GET/PUT/DELETE | `/fuel/:id` | |
 | GET/POST | `/expenses` | Gastos |
 | PUT/DELETE | `/expenses/:id` | |
-| GET | `/maintenance?vehicle_id&due=1&days=15` | Mantenimiento |
-| GET/POST | `/maintenance` | |
+| GET | `/maintenance?vehicle_id&status&due=1&days=15` | Mantenimiento |
+| GET/POST | `/maintenance` | Alta de servicio programado/presupuestado |
 | GET/PUT/DELETE | `/maintenance/:id` | |
+| POST | `/maintenance/:id/complete` | Marca realizado: `maintenance_date`, `cost`, `odometer`, `next_due`, `notes` |
 
 ## Camión
 

@@ -19,6 +19,8 @@ companies
   │      └── freight_trips
   ├── routes
   │      └── services
+  ├── workshops (talleres / proveedores de mantenimiento)
+  │      └── maintenance.workshop_id
   └── settings
 services
   ├── fuel_loads (1 carga vinculada por servicio)
@@ -45,7 +47,8 @@ freight_trips
 | `fuel_loads` | Cargas de gasoil | `vehicle_id`, `service_id`, `load_date`, `liters`, `amount`, `full_tank`, `odometer` |
 | `service_expenses` | Deducciones del servicio | `category`, `amount`, `service_id` |
 | `service_closings` | Cierre de caja | `cash_delivered`, `surplus`, `difference` |
-| `maintenance` | Mantenimiento | `maintenance_date`, `category`, `concept`, `next_due`, `cost` |
+| `workshops` | Talleres / proveedores | `name`, `phone`, `address`, `active` |
+| `maintenance` | Servicios de mantenimiento | `maintenance_date`, `category`, `concept`, `status` (`programado`/`presupuestado`/`realizado`/`cancelado`), `budget_amount`, `cost`, `next_due`, `workshop_id` |
 | `freight_trips` | Viaje de camión | `trip_date`, `vehicle_id`, `driver_id`, `km`, `commission_pct` |
 | `freight_items` | Remito del viaje | `remito`, `origin`, `destination`, `kilos`, `tariff`, importes calculados |
 
@@ -75,7 +78,8 @@ surplus       = fare_total - gasoil - oncológico - boleterías - MP - otros
 | `v_schedules` | Programación con ruta, recorrido, coche, chofer y guarda |
 | `v_fuel_loads` | Combustible con vehículo y servicio |
 | `v_expenses` | Gastos con servicio/vehículo |
-| `v_maintenance` | Mantenimiento con `days_left` |
+| `v_maintenance` | Mantenimiento con estado, taller, teléfono y `days_left` |
+| `v_workshops` | Talleres con empresa |
 | `v_freight_trips` | Viajes con totales agregados de remitos |
 | `v_freight_items` | Remitos con fecha, vehículo y chofer |
 | `v_users` | Usuarios sin hash de clave |
@@ -87,6 +91,8 @@ surplus       = fare_total - gasoil - oncológico - boleterías - MP - otros
 - `services(vehicle_id, service_date DESC)`
 - `fuel_loads(company_id, load_date DESC)`
 - `maintenance(next_due) WHERE next_due IS NOT NULL`
+- `maintenance(company_id, status, maintenance_date DESC)`
+- `workshops(company_id, name)`
 - `freight_trips(company_id, trip_date DESC)`
 - `audit_log(company_id, created_at DESC)`
 

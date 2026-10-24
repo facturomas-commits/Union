@@ -146,11 +146,12 @@ begin
 
   LMaint := TDB.Q(
     'select coalesce(json_agg(row_to_json(t)), ''[]'') from (' +
-    'select * from v_maintenance where company_id = :p0 and maintenance_date = :p1::date ' +
-    'order by id) t', [ACompany, ADate]);
+    'select * from v_maintenance where company_id = :p0 and status = ''realizado'' ' +
+    'and maintenance_date = :p1::date order by id) t', [ACompany, ADate]);
 
   LMaintTotal := TDB.QFloat(
-    'select coalesce(sum(cost),0) from maintenance where company_id = :p0 and maintenance_date = :p1::date',
+    'select coalesce(sum(cost),0) from maintenance where company_id = :p0 ' +
+    'and status = ''realizado'' and maintenance_date = :p1::date',
     [ACompany, ADate]);
 
   LGeneral := TDB.Q(
@@ -164,18 +165,32 @@ begin
 
   LAlerts := TDB.Q(
     'select coalesce(json_agg(row_to_json(a)), ''[]'') from (' +
-    '  select ''maintenance'' as kind, m.id, m.vehicle_no as reference,' +
+    '  select ''maintenance_due'' as kind, m.id, m.vehicle_id, m.vehicle_no as reference,' +
     '         m.concept as message, m.next_due as due_date, m.days_left' +
-    '    from v_maintenance m' +
-    '   where m.company_id = :p0 and m.next_due is not null' +
+    '    from (select distinct on (vehicle_id, category) *' +
+    '            from v_maintenance' +
+    '           where company_id = :p0 and status = ''realizado''' +
+    '           order by vehicle_id, category, maintenance_date desc, id desc) m' +
+    '   where m.next_due is not null' +
     '     and m.next_due <= current_date + :p1::int' +
+    '     and not exists (select 1 from v_maintenance o' +
+    '                      where o.company_id = m.company_id and o.vehicle_id = m.vehicle_id' +
+    '                        and o.category = m.category' +
+    '                        and o.status in (''programado'', ''presupuestado''))' +
     '  union all' +
-    '  select ''negative_surplus'' as kind, s.id, s.vehicle_no as reference,' +
+    '  select ''maintenance_order'' as kind, m.id, m.vehicle_id, m.vehicle_no as reference,' +
+    '         case m.status when ''presupuestado'' then ''Servicio presupuestado pendiente''' +
+    '              else ''Servicio programado pendiente'' end,' +
+    '         m.maintenance_date as due_date, (m.maintenance_date - current_date) as days_left' +
+    '    from v_maintenance m' +
+    '   where m.company_id = :p0 and m.status in (''programado'', ''presupuestado'')' +
+    '  union all' +
+    '  select ''negative_surplus'' as kind, s.id, s.vehicle_id, s.vehicle_no as reference,' +
     '         ''Servicio con sobrante negativo'' as message, s.service_date as due_date, 0 as days_left' +
     '    from v_services s' +
     '   where s.company_id = :p0 and s.service_date = :p2::date and s.surplus < 0' +
     '  union all' +
-    '  select ''open_service'' as kind, s.id, s.vehicle_no as reference,' +
+    '  select ''open_service'' as kind, s.id, s.vehicle_id, s.vehicle_no as reference,' +
     '         ''Servicio sin cerrar'' as message, s.service_date as due_date, 0 as days_left' +
     '    from v_services s' +
     '   where s.company_id = :p0 and s.service_date = :p2::date and s.status = ''open''' +
@@ -298,6 +313,7 @@ begin
       '           and trip_date >= :p1::date and trip_date < (:p1::date + interval ''1 month'')' +
       '         group by trip_date),' +
       ' mt as (select maintenance_date, sum(cost) cost from maintenance where company_id = :p0' +
+      '          and status = ''realizado''' +
       '          and maintenance_date >= :p1::date and maintenance_date < (:p1::date + interval ''1 month'')' +
       '         group by maintenance_date),' +
       ' gen as (select expense_date, sum(amount) amount from service_expenses where company_id = :p0' +
@@ -364,6 +380,7 @@ begin
         TJSONObject(LObj.FindValue('totals')),
         TJSONObject(LObj.FindValue('freight_totals')),
         TDB.QFloat('select coalesce(sum(cost),0) from maintenance where company_id = :p0' +
+          ' and status = ''realizado''' +
           ' and maintenance_date >= :p1::date and maintenance_date < (:p1::date + interval ''1 month'')',
           [LCompany, LMonthStart]), LGeneralTotal));
       SendJsonText(Res, LObj.ToJSON, 200);
@@ -386,8 +403,11 @@ begin
     LJson := TDB.Q(
       'select json_build_object(''days'', :p1::int, ''items'', (' +
       ' select coalesce(json_agg(row_to_json(t)), ''[]'') from (' +
-      '  select * from v_maintenance where company_id = :p0 and next_due is not null' +
-      '   and next_due <= current_date + :p1::int order by next_due) t))',
+      '  select * from (select distinct on (vehicle_id, category) *' +
+      '                  from v_maintenance where company_id = :p0 and status = ''realizado''' +
+      '                  order by vehicle_id, category, maintenance_date desc, id desc) m' +
+      '   where m.next_due is not null and m.next_due <= current_date + :p1::int' +
+      '   order by m.next_due) t))',
       [LCompany, LDays]);
     SendJsonText(Res, LJson, 200);
   except

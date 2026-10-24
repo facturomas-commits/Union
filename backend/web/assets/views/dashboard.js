@@ -39,18 +39,29 @@ function serviceRows(rows){
 function alertRows(rows){
   if (!rows || !rows.length) return `<div class="empty" style="padding:24px 14px">${ui.icon('check',22)}<strong>Sin alertas</strong><span>Todo en orden para la fecha.</span></div>`;
   return rows.map(a=>{
-    const cls = a.kind==='negative_surplus' ? 'red' : (a.kind==='open_service' ? 'blue' : '');
-    const ico = a.kind==='maintenance' ? 'wrench' : (a.kind==='negative_surplus' ? 'alert' : 'bus');
-    const when = a.kind==='maintenance' ? (Number(a.days_left) < 0 ? `Vencido ${Math.abs(a.days_left)} d` : `En ${a.days_left} d`) : '';
-    const target = a.kind==='maintenance'
-      ? `#/maintenance?open=${Number(a.id)}`
-      : `#/colectivos?date=${encodeURIComponent(a.due_date||'')}&open=${Number(a.id)}`;
-    const canOpen = canWrite() && (a.kind==='maintenance' ? hasModule('maintenance') : hasModule('colectivos'));
+    const isDue=a.kind==='maintenance_due';
+    const isOrder=a.kind==='maintenance_order';
+    const isMaint=isDue||isOrder;
+    const cls=a.kind==='negative_surplus'?'red':(isOrder||a.kind==='open_service'?'blue':'');
+    const ico=isDue?'wrench':(isOrder?'calendar':(a.kind==='negative_surplus'?'alert':'bus'));
+    let when='';
+    if(isDue) when=Number(a.days_left)<0?`Vencido ${Math.abs(a.days_left)} d`:`En ${a.days_left} d`;
+    else if(isOrder){
+      const d=Number(a.days_left);
+      when=d<0?`Atrasado ${Math.abs(d)} d`:(d===0?'Hoy':`En ${d} d`);
+    }
+    const target=isDue
+      ? `#/maintenance?program_vehicle=${Number(a.vehicle_id)}&source=${Number(a.id)}`
+      : isOrder
+        ? `#/maintenance?open=${Number(a.id)}`
+        : `#/colectivos?date=${encodeURIComponent(a.due_date||'')}&open=${Number(a.id)}`;
+    const label=isDue?'Programar':(isOrder?'Abrir':'Revisar');
+    const canOpen=canWrite() && (isMaint?hasModule('maintenance'):hasModule('colectivos'));
     return `<div class="alert-item">
       <div class="alert-ico ${cls}">${ui.icon(ico)}</div>
       <div><strong>${ui.esc(a.message)}</strong><span>Coche #${ui.esc(a.reference)}</span></div>
       <div class="when">${ui.esc(when)}</div>
-      ${canOpen?`<a class="btn btn-sm btn-secondary" href="${target}" data-attend style="margin-left:8px;white-space:nowrap" title="Abrir y atender">${ui.icon('arrow')} Atender</a>`:''}
+      ${canOpen?`<a class="btn btn-sm btn-secondary" href="${target}" data-attend style="margin-left:8px;white-space:nowrap" title="${label}">${ui.icon('arrow')} ${label}</a>`:''}
     </div>`;
   }).join('');
 }
