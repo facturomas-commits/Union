@@ -194,7 +194,7 @@ async function loadDaily(report,date){
 
       <div class="report-section">
         <h4>Consolidado del día</h4>
-        <div class="summary-strip" style="grid-template-columns:repeat(4,1fr)">
+        <div class="summary-strip">
           <div class="summary-cell"><div class="l">Ingreso neto</div><div class="v">${ui.money(c.total_income_net)}</div></div>
           <div class="summary-cell"><div class="l">Costos</div><div class="v">${ui.money(c.total_costs)}</div></div>
           <div class="summary-cell"><div class="l">Margen</div><div class="v ${Number(c.margin)<0?'neg':'pos'}">${ui.money(c.margin)}</div></div>
@@ -276,7 +276,7 @@ async function loadMonthly(report,month){
       </div>
       <div class="report-section">
         <h4>Consolidado del mes</h4>
-        <div class="summary-strip" style="grid-template-columns:repeat(4,1fr)">
+        <div class="summary-strip">
           <div class="summary-cell"><div class="l">Ingreso neto</div><div class="v">${ui.money(c.total_income_net)}</div></div>
           <div class="summary-cell"><div class="l">Costos</div><div class="v">${ui.money(c.total_costs)}</div></div>
           <div class="summary-cell"><div class="l">Margen</div><div class="v ${Number(c.margin)<0?'neg':'pos'}">${ui.money(c.margin)}</div></div>
