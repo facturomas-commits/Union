@@ -1,5 +1,5 @@
 ﻿import { api } from '../api.js';
-import { state, canWrite } from '../store.js';
+import { state, canWrite, canSeeMoney } from '../store.js';
 import * as ui from '../ui.js';
 
 function defaultDate(){
@@ -16,19 +16,22 @@ function kpi(label, value, foot, iconName, cls='', small=false){
 }
 
 function serviceRows(rows){
-  if (!rows || !rows.length) return `<tr><td colspan="8">${ui.emptyState('Sin colectivos cargados','No hay servicios para la fecha seleccionada.','bus')}</td></tr>`;
+  if (!rows || !rows.length) return `<tr><td colspan="${canSeeMoney()?8:6}">${ui.emptyState('Sin colectivos cargados','No hay colectivos para la fecha seleccionada.','bus')}</td></tr>`;
   return rows.map(s=>{
     const dir = s.direction==='vuelta'
       ? '<span class="badge purple">Vuelta</span>'
       : '<span class="badge blue">Ida</span>';
+    const moneyCells = canSeeMoney()
+      ? `<td class="num">${ui.money(s.revenue)}</td>
+         <td class="num ${Number(s.surplus)<0?'neg':'pos'}">${ui.money(s.surplus)}</td>`
+      : '';
     return `<tr>
     <td class="nowrap"><strong>${ui.timeHM(s.departure_time)}</strong><div class="sub">${ui.esc(s.schedule_label||'')}</div></td>
     <td>${dir}</td>
     <td><strong>#${ui.esc(s.vehicle_no)}</strong><div class="sub">${ui.esc(s.service_origin||'')} → ${ui.esc(s.service_destination||'')}</div></td>
     <td>${ui.esc(s.driver_name||'—')}<div class="sub">${ui.esc(s.guard_name||'')}</div></td>
     <td class="num">${ui.integer(s.tickets_count)}</td>
-    <td class="num">${ui.money(s.revenue)}</td>
-    <td class="num ${Number(s.surplus)<0?'neg':'pos'}">${ui.money(s.surplus)}</td>
+    ${moneyCells}
     <td>${ui.statusBadge(s.status)}</td>
   </tr>`;}).join('');
 }
@@ -99,22 +102,29 @@ async function load(body, date){
 
     body.innerHTML = `
       <div class="grid grid-kpi" style="margin-bottom:16px">
+        ${canSeeMoney()?`
         ${kpi('Recaudación', ui.money(t.revenue), `${ui.integer(t.services)} salidas · ${ui.integer(t.tickets)} boletos`, 'coins', 'accent')}
         ${kpi('Sobrante', ui.money(t.surplus), 'Recaudación menos deducciones', 'chart', Number(t.surplus)<0?'red':'green')}
         ${kpi('Gasoil', ui.money(t.fuel_amount), `${ui.num(t.fuel_liters)} litros`, 'fuel', 'orange')}
         ${kpi('Km recorridos', ui.integer(t.km), `${ui.num(c.bus_km_per_liter,2)} km/l`, 'route')}
         ${kpi('Camión (neto)', ui.money(ft.net_amount), `${ui.integer(ft.trips)} viajes · ${ui.integer(ft.kilos)} kg`, 'truck', 'purple')}
         ${kpi('Margen del día', ui.money(c.margin), `Costos ${ui.money(c.total_costs)}`, 'dashboard', marginCls)}
+        `:`
+        ${kpi('Salidas', ui.integer(t.services), 'Colectivos del día', 'bus', 'accent')}
+        ${kpi('Boletos', ui.integer(t.tickets), 'Pasajes registrados', 'receipt')}
+        ${kpi('Km recorridos', ui.integer(t.km), 'Colectivos', 'route')}
+        ${kpi('Camión', ui.integer(ft.trips), `${ui.integer(ft.kilos)} kg transportados`, 'truck', 'purple')}
+        `}
       </div>
 
-      <div class="grid grid-main" style="margin-bottom:16px">
-        <div class="card">
+      <div class="grid ${canSeeMoney()?'grid-main':''}" style="margin-bottom:16px">
+        ${canSeeMoney()?`<div class="card">
           <div class="card-head"><h3>Últimos 7 días</h3><span class="hint">Recaudación vs. sobrante</span></div>
           <div class="card-body">${ui.barChart(series, [
             {key:'revenue', label:'Recaudación', cls:'bar-rev', color:'#1d528d'},
             {key:'surplus', label:'Sobrante', cls:'bar-sur', color:'#0ea5e9'}
           ], {height:230})}</div>
-        </div>
+        </div>`:''}
         <div class="card">
           <div class="card-head"><h3>Alertas</h3><span class="hint">${(d.alerts||[]).length} pendientes</span></div>
           <div class="alert-list">${alertRows((d.alerts||[]).slice(0,5))}</div>
@@ -129,7 +139,7 @@ async function load(body, date){
         </div>
         <div class="table-wrap">
           <table class="data">
-            <thead><tr><th>Horario</th><th>Dir.</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th><th class="num">Recaudación</th><th class="num">Sobrante</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Horario</th><th>Dir.</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th>${canSeeMoney()?'<th class="num">Recaudación</th><th class="num">Sobrante</th>':''}<th>Estado</th></tr></thead>
             <tbody>${serviceRows(d.services)}</tbody>
           </table>
         </div>
@@ -144,10 +154,11 @@ async function load(body, date){
           <div class="card-head"><h3>Camión</h3><span class="hint">${ui.integer(ft.trips)} viajes</span></div>
           <div class="card-body" style="display:grid;gap:10px">
             <div style="display:flex;justify-content:space-between"><span class="muted">Kilos</span><strong>${ui.integer(ft.kilos)}</strong></div>
+            ${canSeeMoney()?`
             <div style="display:flex;justify-content:space-between"><span class="muted">Neto</span><strong>${ui.money(ft.net_amount)}</strong></div>
             <div style="display:flex;justify-content:space-between"><span class="muted">IVA</span><strong>${ui.money(ft.vat_amount)}</strong></div>
             <div style="display:flex;justify-content:space-between"><span class="muted">Total</span><strong>${ui.money(ft.total_amount)}</strong></div>
-            <div style="display:flex;justify-content:space-between"><span class="muted">Comisión chofer</span><strong>${ui.money(ft.driver_commission)}</strong></div>
+            <div style="display:flex;justify-content:space-between"><span class="muted">Comisión chofer</span><strong>${ui.money(ft.driver_commission)}</strong></div>`:''}
             <a class="btn btn-sm btn-secondary" href="#/freight" style="margin-top:4px">Ver camión ${ui.icon('arrow')}</a>
           </div>
         </div>

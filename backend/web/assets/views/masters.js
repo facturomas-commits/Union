@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, canWrite, isAdmin, isSuper, hasModule } from '../store.js';
-import { MODULES, defaultModules } from '../modules.js';
+import { MODULES, defaultModules, defaultFinancials } from '../modules.js';
 import * as ui from '../ui.js';
 
 const TABS=[
@@ -195,11 +195,12 @@ async function usersTab(pane,actions,reload){
   const rows=await api.get('/users');
   actions.innerHTML=`<button class="btn" id="add">${ui.icon('plus')} Nuevo usuario</button>`;
   pane.innerHTML=`<div class="table-wrap"><table class="data">
-    <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Módulos</th><th>Email</th><th>Último ingreso</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Módulos</th><th>Importes</th><th>Email</th><th>Último ingreso</th><th>Estado</th><th></th></tr></thead>
     <tbody>${rows.map(u=>`<tr>
       <td><strong>${ui.esc(u.username)}</strong></td><td>${ui.esc(u.full_name)}</td>
       <td><span class="badge ${u.role==='viewer'?'gray':(u.role==='operator'?'blue':'purple')}">${ui.roleLabel(u.role)}</span></td>
       <td>${Array.isArray(u.allowed_modules)?`<span class="badge blue">${u.allowed_modules.length} módulos</span>`:'<span class="badge gray">Según rol</span>'}</td>
+      <td>${(u.can_view_financials ?? defaultFinancials(u.role))?'<span class="badge green">Sí</span>':'<span class="badge gray">No</span>'}</td>
       <td>${ui.esc(u.email||'—')}</td><td>${u.last_login?ui.dateTime(u.last_login):'—'}</td>
       <td>${u.active?'<span class="badge green">Activo</span>':'<span class="badge gray">Inactivo</span>'}</td>
       <td><div class="table-actions">
@@ -218,6 +219,7 @@ function userForm(u,reload){
   const roles=[['operator','Operador'],['supervisor','Supervisor'],['admin','Administrador'],['viewer','Consulta']];
   if(isSuper()) roles.push(['superadmin','Superadmin']);
   const selected=Array.isArray(d.allowed_modules)?d.allowed_modules:defaultModules(d.role||'operator');
+  const financial=(d.can_view_financials ?? defaultFinancials(d.role||'operator'));
   ui.openModal({
     title:isEdit?'Editar usuario':'Nuevo usuario',
     subtitle:isEdit?'Deje la contraseña vacía para conservarla.':'La contraseña es obligatoria.',
@@ -229,6 +231,7 @@ function userForm(u,reload){
       <div class="field"><label>Contraseña ${isEdit?'(opcional)':'*'}</label><input name="password" type="password" minlength="8" ${isEdit?'':'required'}></div>
       <div class="field"><label>Activo</label><label class="check"><input type="checkbox" name="active" ${d.active!==false?'checked':''}> Sí</label></div>
       <div class="field"><label>Cambiar clave al ingresar</label><label class="check"><input type="checkbox" name="must_change_password" ${d.must_change_password?'checked':''}> Sí</label></div>
+      <div class="field full"><label>Importes y recaudación</label><label class="check"><input type="checkbox" name="can_view_financials" ${financial?'checked':''}> Ver importes, recaudación y reportes</label><div class="help">Si está desmarcado, el usuario opera sin ver montos ni totales. Los reportes quedan bloqueados.</div></div>
       <div class="field full"><label>Módulos permitidos</label>
         <div class="module-grid" id="module-grid">
           ${MODULES.map(m=>`<label class="check"><input type="checkbox" name="module" value="${m.id}" ${selected.includes(m.id)?'checked':''}> ${m.label}</label>`).join('')}
@@ -237,13 +240,17 @@ function userForm(u,reload){
       </div>
     </div>`,
     onReady(form){
-      const setModules=(role)=>form.querySelectorAll('input[name=module]').forEach(x=>{ x.checked=defaultModules(role).includes(x.value); });
+      const setModules=(role)=>{
+        form.querySelectorAll('input[name=module]').forEach(x=>{ x.checked=defaultModules(role).includes(x.value); });
+        form.elements.can_view_financials.checked=defaultFinancials(role);
+      };
       form.querySelector('#reset-modules').onclick=()=>setModules(form.elements.role.value);
-      form.elements.role.addEventListener('change',()=>{ if(!isEdit) setModules(form.elements.role.value); });
+      form.elements.role.addEventListener('change',()=>{ if(!isEdit) setModules(form.elements.role.value); else form.elements.can_view_financials.checked=defaultFinancials(form.elements.role.value); });
     },
     async onSubmit(form,close){
       const p={full_name:form.elements.full_name.value,email:form.elements.email.value,role:form.elements.role.value,
         active:ui.boolVal(form,'active'),must_change_password:ui.boolVal(form,'must_change_password'),
+        can_view_financials:ui.boolVal(form,'can_view_financials'),
         allowed_modules:[...form.querySelectorAll('input[name=module]:checked')].map(x=>x.value)};
       const pass=form.elements.password.value;
       if(!p.full_name) throw new Error('Ingrese el nombre');

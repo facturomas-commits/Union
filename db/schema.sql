@@ -44,12 +44,14 @@ CREATE TABLE IF NOT EXISTS users (
   active                BOOLEAN NOT NULL DEFAULT TRUE,
   must_change_password  BOOLEAN NOT NULL DEFAULT FALSE,
   allowed_modules       JSONB,
+  can_view_financials   BOOLEAN,
   last_login            TIMESTAMPTZ,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_modules JSONB;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_financials BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash  CHAR(64) PRIMARY KEY,
@@ -517,7 +519,8 @@ GROUP BY t.id, v.internal_no, v.plate, d.full_name;
 DROP VIEW IF EXISTS v_users;
 CREATE VIEW v_users AS
 SELECT u.id, u.company_id, c.name AS company_name, u.username, u.full_name,
-       u.email, u.role, u.active, u.must_change_password, u.allowed_modules, u.last_login,
+       u.email, u.role, u.active, u.must_change_password, u.allowed_modules,
+       u.can_view_financials, u.last_login,
        u.created_at, u.updated_at
 FROM users u
 LEFT JOIN companies c ON c.id = u.company_id;

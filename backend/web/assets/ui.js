@@ -1,4 +1,6 @@
 /* Utilidades de interfaz */
+import { canSeeMoney } from './store.js';
+
 const moneyFmt = new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', minimumFractionDigits:2, maximumFractionDigits:2 });
 const numFmt = new Intl.NumberFormat('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
 const intFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits:0 });
@@ -9,6 +11,7 @@ export function esc(v){
     .replaceAll('"','&quot;').replaceAll("'",'&#39;');
 }
 export function money(n){
+  if (!canSeeMoney()) return '—';
   const v = Number(n);
   return moneyFmt.format(Number.isFinite(v) ? v : 0);
 }

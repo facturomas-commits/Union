@@ -150,11 +150,13 @@ Ver detalle en [`docs/reportes.md`](docs/reportes.md).
 |---|---|
 | `superadmin` | Todo, empresas y superadmins |
 | `admin` | Todo dentro de su empresa, usuarios y configuración |
-| `supervisor` | Operación, maestros y reportes; sin usuarios/auditoría/configuración |
-| `operator` | Operación y reportes, sin maestros/auditoría/usuarios/configuración |
-| `viewer` | Solo lectura de la operación y reportes |
+| `supervisor` | Operación, maestros, reportes e importes |
+| `operator` | Operación sin importes ni reportes por defecto |
+| `viewer` | Solo lectura de la operación, sin importes ni reportes por defecto |
 
 Además del rol, cada usuario tiene **módulos permitidos**. Se asignan en **Maestros → Usuarios** y controlan el menú, las pestañas y el acceso a la API. Un usuario puede tener, por ejemplo, solo el módulo Colectivos.
+
+El permiso **“Ver importes y recaudación”** es independiente de los módulos. Si está desmarcado, la web oculta montos/totales y el backend elimina los campos monetarios de las respuestas; los reportes y exportaciones responden 403. Por defecto lo tienen `superadmin`, `admin` y `supervisor`; `operator` y `viewer` no.
 
 Ver detalle y valores por defecto en [`docs/permisos.md`](docs/permisos.md).
 

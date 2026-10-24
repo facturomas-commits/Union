@@ -342,7 +342,7 @@ end;
 procedure CreateUser(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr, LUsername, LFullName, LRole, LPassword, LHash, LModules: string;
+  LErr, LUsername, LFullName, LRole, LPassword, LHash, LModules, LFinancial: string;
   LCompany, LId: Integer;
   LActive: Boolean;
 begin
@@ -369,11 +369,17 @@ begin
 
     LHash := TDB.Q('select crypt(:p0, gen_salt(''bf'', 12))', [LPassword]);
     LModules := ModulesJson(LBody);
+    if Has(LBody, 'can_view_financials') then
+    begin
+      if GetBool(LBody, 'can_view_financials', False) then LFinancial := 'true' else LFinancial := 'false';
+    end
+    else
+      LFinancial := '';
     LId := TDB.ExecRetId(
-      'insert into users (company_id, username, full_name, email, password_hash, role, active, must_change_password, allowed_modules) ' +
-      'values (:p0, :p1, :p2, :p3, :p4, :p5, :p6, :p7, NULLIF(:p8, '''')::jsonb) returning id',
+      'insert into users (company_id, username, full_name, email, password_hash, role, active, must_change_password, allowed_modules, can_view_financials) ' +
+      'values (:p0, :p1, :p2, :p3, :p4, :p5, :p6, :p7, NULLIF(:p8, '''')::jsonb, NULLIF(:p9, '''')::boolean) returning id',
       [LCompany, LUsername, LFullName, GetStr(LBody, 'email'), LHash, LRole, LActive,
-       GetBool(LBody, 'must_change_password', True), LModules]);
+       GetBool(LBody, 'must_change_password', True), LModules, LFinancial]);
     AuditAction('create', 'user', LId, '{}');
     SendCreated(Res, LId);
   except
@@ -385,10 +391,10 @@ end;
 procedure UpdateUser(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr, LRole, LPassword, LHash, LModules: string;
+  LErr, LRole, LPassword, LHash, LModules, LFinancial: string;
   LId, LCompany, LTargetCompany: Integer;
   LTargetRole: string;
-  LActive, LHasModules: Boolean;
+  LActive, LHasModules, LHasFinancial: Boolean;
 begin
   if not RequireAdmin(Res) then Exit;
   LBody := nil;
@@ -433,10 +439,17 @@ begin
       TDB.Exec('update users set allowed_modules = NULLIF(:p0, '''')::jsonb where id = :p1', [LModules, LId]);
     end;
 
+    LHasFinancial := Has(LBody, 'can_view_financials');
+    if LHasFinancial then
+    begin
+      if GetBool(LBody, 'can_view_financials', False) then LFinancial := 'true' else LFinancial := 'false';
+      TDB.Exec('update users set can_view_financials = :p0::boolean where id = :p1', [LFinancial, LId]);
+    end;
+
     if not UpdateRow('users', USER_FIELDS, LBody, LId,
       IfThen(GAuth.IsSuper, 0, LCompany), LErr) then
     begin
-      if not (not LPassword.IsEmpty) and (not LHasModules) then
+      if not (not LPassword.IsEmpty) and (not LHasModules) and (not LHasFinancial) then
       begin SendError(Res, LErr, 400); Exit; end;
     end;
 

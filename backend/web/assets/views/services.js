@@ -1,5 +1,5 @@
 ﻿import { api, qs } from '../api.js';
-import { state, canWrite } from '../store.js';
+import { state, canWrite, canSeeMoney } from '../store.js';
 import * as ui from '../ui.js';
 
 let cats = null;
@@ -19,7 +19,7 @@ async function loadCats(force=false){
 
 function defaultRange(){
   const base = (state.latest && state.latest.service_date) || state.today;
-  return { from: base.slice(0,7) + '-01', to: base, vehicle: '' };
+  return { from: base, to: base, vehicle: '' };
 }
 
 function deduction(s){
@@ -33,16 +33,19 @@ function dirBadge(d){
 }
 
 function rowHtml(s, canEdit){
+  const moneyCells = canSeeMoney()
+    ? `<td class="num">${ui.money(s.revenue)}</td>
+       <td class="num">${ui.money(s.fuel_amount)}<div class="sub">${ui.num(s.fuel_liters)} L</div></td>
+       <td class="num">${ui.money(deduction(s))}</td>
+       <td class="num ${Number(s.surplus)<0?'neg':'pos'}"><strong>${ui.money(s.surplus)}</strong></td>`
+    : '';
   return `<tr>
     <td class="nowrap">${ui.dateDMY(s.service_date)}<div class="sub">${dirBadge(s.direction)}</div></td>
     <td class="nowrap"><strong>${ui.timeHM(s.departure_time)}</strong><div class="sub">${ui.esc(s.schedule_label||'')}</div></td>
     <td><strong>#${ui.esc(s.vehicle_no)}</strong><div class="sub">${ui.esc(s.service_origin||'')} → ${ui.esc(s.service_destination||'')}</div></td>
     <td>${ui.esc(s.driver_name||'—')}<div class="sub">${ui.esc(s.guard_name||'')}</div></td>
     <td class="num">${ui.integer(s.tickets_count)}</td>
-    <td class="num">${ui.money(s.revenue)}</td>
-    <td class="num">${ui.money(s.fuel_amount)}<div class="sub">${ui.num(s.fuel_liters)} L</div></td>
-    <td class="num">${ui.money(deduction(s))}</td>
-    <td class="num ${Number(s.surplus)<0?'neg':'pos'}"><strong>${ui.money(s.surplus)}</strong></td>
+    ${moneyCells}
     <td>${ui.statusBadge(s.status)}</td>
     <td class="sticky-col"><div class="table-actions">
       ${canEdit?`<button class="btn btn-sm btn-secondary btn-icon" data-edit="${s.id}" title="Editar">${ui.icon('edit',14)}</button>
@@ -76,7 +79,7 @@ export default {
           <button class="btn btn-secondary" id="btn-reload">${ui.icon('refresh')} Actualizar</button>
         </div>
         <div class="table-wrap"><table class="data">
-          <thead><tr><th>Fecha</th><th>Horario</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Deducciones</th><th class="num">Sobrante</th><th>Estado</th><th class="sticky-col"></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Horario</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th>${canSeeMoney()?'<th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Deducciones</th><th class="num">Sobrante</th>':''}<th>Estado</th><th class="sticky-col"></th></tr></thead>
           <tbody id="tbody"></tbody>
         </table></div>
         <div class="card-footer" id="foot"></div>
@@ -95,20 +98,27 @@ export default {
           direction: root.querySelector('#f-direction').value,
           status: root.querySelector('#f-status').value,
         }));
-        tbody.innerHTML = rows.length ? rows.map(s=>rowHtml(s, canWrite())).join('') : `<tr><td colspan="11">${ui.emptyState('Sin colectivos','No hay colectivos en el rango seleccionado.','bus')}</td></tr>`;
+        tbody.innerHTML = rows.length ? rows.map(s=>rowHtml(s, canWrite())).join('') : `<tr><td colspan="${canSeeMoney()?11:7}">${ui.emptyState('Sin colectivos','No hay colectivos en el rango seleccionado.','bus')}</td></tr>`;
         const tot = rows.reduce((a,s)=>{
           a.rev += Number(s.revenue||0); a.fuel += Number(s.fuel_amount||0); a.ded += deduction(s); a.sur += Number(s.surplus||0); a.tickets += Number(s.tickets_count||0);
+          if(s.direction==='vuelta'){ a.revVuelta += Number(s.revenue||0); a.surVuelta += Number(s.surplus||0); }
+          else { a.revIda += Number(s.revenue||0); a.surIda += Number(s.surplus||0); }
           return a;
-        },{rev:0,fuel:0,ded:0,sur:0,tickets:0});
+        },{rev:0,fuel:0,ded:0,sur:0,tickets:0,revIda:0,revVuelta:0,surIda:0,surVuelta:0});
+        const countIda = rows.filter(s=>s.direction!=='vuelta').length;
+        const countVuelta = rows.filter(s=>s.direction==='vuelta').length;
+        const summary = canSeeMoney()
+          ? `<span>Recaudación <b>${ui.money(tot.rev)}</b> (Ida ${ui.money(tot.revIda)} · Vuelta ${ui.money(tot.revVuelta)}) · Gasoil <b>${ui.money(tot.fuel)}</b> · Deducciones <b>${ui.money(tot.ded)}</b> · Sobrante <b class="${tot.sur<0?'neg':'pos'}">${ui.money(tot.sur)}</b></span>`
+          : `<span class="muted">Los importes y la recaudación están restringidos para su usuario.</span>`;
         foot.innerHTML = `<div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12px">
-          <span><b>${rows.length}</b> salidas · <b>${ui.integer(tot.tickets)}</b> boletos</span>
-          <span>Recaudación <b>${ui.money(tot.rev)}</b> · Gasoil <b>${ui.money(tot.fuel)}</b> · Deducciones <b>${ui.money(tot.ded)}</b> · Sobrante <b class="${tot.sur<0?'neg':'pos'}">${ui.money(tot.sur)}</b></span>
+          <span><b>${rows.length}</b> salidas (${countIda} ida · ${countVuelta} vuelta) · <b>${ui.integer(tot.tickets)}</b> boletos · ${ui.dateDMY(root.querySelector('#f-from').value)} al ${ui.dateDMY(root.querySelector('#f-to').value)}</span>
+          ${summary}
         </div>`;
         tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openForm(Number(b.dataset.edit), onSaved));
         tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeService(Number(b.dataset.del), onSaved));
         tbody.querySelectorAll('[data-close-svc]').forEach(b=>b.onclick=()=>toggleClose(Number(b.dataset.closeSvc), rows.find(r=>r.id===Number(b.dataset.closeSvc)), onSaved));
       }catch(ex){
-        tbody.innerHTML = `<tr><td colspan="11">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${canSeeMoney()?11:7}">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
         ui.toast(ex.message,'err');
       }
     }
@@ -166,15 +176,15 @@ async function openForm(id, onDone){
       ${isEdit&&d.direction==='vuelta'&&d.outbound_id?`<div class="tiny muted" style="margin-top:6px">Ida vinculada: #${d.outbound_id} · ${ui.timeHM(d.outbound_departure_time)}</div>`:''}
     </div>
 
-    <div class="section-title">Boletos y recaudación</div>
+    <div class="section-title">Boletos</div>
     <div class="form-grid cols-4">
       <div class="field"><label>Boleto desde</label><input name="ticket_from" type="number" value="${isEdit&&d.ticket_from!==null?d.ticket_from:''}"></div>
       <div class="field"><label>Boleto hasta</label><input name="ticket_to" type="number" value="${isEdit&&d.ticket_to!==null?d.ticket_to:''}"></div>
-      <div class="field"><label>Recaudación $</label><input name="fare_total" type="number" step="0.01" value="${isEdit?d.revenue:''}"></div>
+      ${canSeeMoney()?`<div class="field"><label>Recaudación $</label><input name="fare_total" type="number" step="0.01" value="${isEdit?d.revenue:''}"></div>`:''}
       <div class="field"><label>Cantidad boletos</label><input value="${isEdit?d.tickets_count:''}" disabled></div>
     </div>
 
-    <div class="section-title">Gasoil y deducciones</div>
+    ${canSeeMoney()?`<div class="section-title">Gasoil y deducciones</div>
     <div class="form-grid cols-4">
       <div class="field"><label>Gasoil $</label><input name="fuel_amount" type="number" step="0.01" value="${isEdit?d.fuel_amount:''}"></div>
       <div class="field"><label>Gasoil litros</label><input name="fuel_liters" type="number" step="0.01" value="${isEdit?d.fuel_liters:''}"></div>
@@ -184,7 +194,7 @@ async function openForm(id, onDone){
       <div class="field"><label>Otros $</label><input name="other_amount" type="number" step="0.01" value="${isEdit?d.other_amount:''}"></div>
       <div class="field"><label>Tanque lleno</label><label class="check"><input type="checkbox" name="full_tank" ${isEdit&&d.full_tank?'checked':''}> Sí</label></div>
       <div class="field"><label>Sobrante estimado</label><div id="surplus-preview" style="height:37px;display:flex;align-items:center;font-weight:900;font-size:16px"></div></div>
-    </div>
+    </div>`:''}
 
     <div class="section-title">Observaciones</div>
     <div class="field"><textarea name="notes" placeholder="Novedades del servicio, reemplazos, etc.">${ui.esc(d.notes||'')}</textarea></div>`;
@@ -195,10 +205,11 @@ async function openForm(id, onDone){
     body, wide:true, submitText: isEdit?'Guardar cambios':'Crear servicio',
     onReady(form){
       const calc=()=>{
+        const el=form.querySelector('#surplus-preview');
+        if(!el) return;
         const rev=ui.numVal(form,'fare_total'), fuel=ui.numVal(form,'fuel_amount');
         const ded=ui.numVal(form,'oncology_amount')+ui.numVal(form,'ticket_office_amount')+ui.numVal(form,'mp_amount')+ui.numVal(form,'other_amount');
         const v=rev-fuel-ded;
-        const el=form.querySelector('#surplus-preview');
         el.textContent=ui.money(v); el.className=v<0?'neg':'pos'; el.style.fontWeight='900';
       };
       form.querySelectorAll('input[type=number]').forEach(i=>i.addEventListener('input',calc));
@@ -245,16 +256,18 @@ async function openForm(id, onDone){
         km: ui.numVal(form,'km'),
         ticket_from: form.elements.ticket_from.value ? Number(form.elements.ticket_from.value) : null,
         ticket_to: form.elements.ticket_to.value ? Number(form.elements.ticket_to.value) : null,
-        fare_total: ui.numVal(form,'fare_total'),
         notes: form.elements.notes.value,
-        fuel_amount: ui.numVal(form,'fuel_amount'),
-        fuel_liters: ui.numVal(form,'fuel_liters'),
-        full_tank: ui.boolVal(form,'full_tank'),
-        oncology_amount: ui.numVal(form,'oncology_amount'),
-        ticket_office_amount: ui.numVal(form,'ticket_office_amount'),
-        mp_amount: ui.numVal(form,'mp_amount'),
-        other_amount: ui.numVal(form,'other_amount'),
       };
+      if(canSeeMoney()){
+        payload.fare_total=ui.numVal(form,'fare_total');
+        payload.fuel_amount=ui.numVal(form,'fuel_amount');
+        payload.fuel_liters=ui.numVal(form,'fuel_liters');
+        payload.full_tank=ui.boolVal(form,'full_tank');
+        payload.oncology_amount=ui.numVal(form,'oncology_amount');
+        payload.ticket_office_amount=ui.numVal(form,'ticket_office_amount');
+        payload.mp_amount=ui.numVal(form,'mp_amount');
+        payload.other_amount=ui.numVal(form,'other_amount');
+      }
       if (!payload.service_date || !payload.route_id || !payload.vehicle_id) throw new Error('Complete fecha, ruta y vehículo');
       if (payload.create_return && !payload.return_departure_time) throw new Error('Indique el horario de la vuelta');
       if (isEdit) await api.put('/services/'+id, payload);

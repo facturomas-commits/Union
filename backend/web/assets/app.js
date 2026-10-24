@@ -1,5 +1,5 @@
 import { api, ApiError } from './api.js';
-import { state, canWrite, isAdmin, isSuper, hasModule } from './store.js';
+import { state, canWrite, isAdmin, isSuper, hasModule, canSeeMoney } from './store.js';
 import { VIEW_MODULE, MODULES, defaultModules } from './modules.js';
 import { icon, initials, roleLabel, toast, openModal, formData } from './ui.js';
 import { renderLogin } from './views/login.js';
@@ -48,12 +48,12 @@ const NAV = [
 ];
 
 function allowedNavItems(){
-  return NAV.flatMap(g=>g.items).filter(it=>hasModule(it.module));
+  return NAV.flatMap(g=>g.items).filter(it=>hasModule(it.module) && (it.id!=='reports' || canSeeMoney()));
 }
 
 function navHtml(current){
   return NAV.map(g=>{
-    const items=g.items.filter(it=>hasModule(it.module));
+    const items=g.items.filter(it=>hasModule(it.module) && (it.id!=='reports' || canSeeMoney()));
     if (!items.length) return '';
     return `<div class="nav-group">${g.group}</div>` + items.map(it=>{
       const active = it.id===current ? ' active' : '';
@@ -104,6 +104,7 @@ function currentRoute(){
   const [path] = raw.split('?');
   let id = path || 'dashboard';
   if (id === 'services') id = 'colectivos';
+  if (id === 'reports' && !canSeeMoney()) id = '';
   if (views[id] && hasModule(VIEW_MODULE[id])) return id;
   const first = allowedNavItems()[0];
   return first ? first.id : 'no-access';
@@ -180,7 +181,7 @@ function changePassword(){
 
 function showLogin(){
   if (document.querySelector('#login-form')) return;
-  state.user=null; state.company=null; state.settings={}; state.modules=[];
+  state.user=null; state.company=null; state.settings={}; state.modules=[]; state.canViewFinancials=false;
   const app=document.getElementById('app');
   renderLogin(app, async (data)=>{
     await loadSession(data);
@@ -196,12 +197,14 @@ async function loadSession(loginData){
     state.company=me.company;
     state.settings=me.settings||{};
     state.modules=me.modules||[];
+    state.canViewFinancials=me.can_view_financials===true;
   }catch(e){
     if (loginData && loginData.user){
       state.user=loginData.user;
       state.company={name:'Empresa'};
       state.settings={};
       state.modules=loginData.modules||defaultModules(loginData.user.role);
+      state.canViewFinancials=loginData.can_view_financials===true;
     } else throw e;
   }
   try{
@@ -216,6 +219,7 @@ async function boot(){
     state.company=me.company;
     state.settings=me.settings||{};
     state.modules=me.modules||[];
+    state.canViewFinancials=me.can_view_financials===true;
     try{ state.latest=await api.latest(); }catch(e){ state.latest=null; }
     if (!location.hash) history.replaceState(null,'','#/dashboard');
     await renderCurrent();

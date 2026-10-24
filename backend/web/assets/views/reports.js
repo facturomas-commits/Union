@@ -1,5 +1,5 @@
 ﻿import { api } from '../api.js';
-import { state } from '../store.js';
+import { state, canSeeMoney } from '../store.js';
 import * as ui from '../ui.js';
 
 function defaultDate(){ return (state.latest&&state.latest.service_date)||state.today; }
@@ -28,6 +28,10 @@ export default {
   title:'Reportes',
   subtitle:'Reporte diario y mensual, listo para imprimir o exportar',
   async render(root){
+    if(!canSeeMoney()){
+      root.innerHTML=`<div class="card">${ui.emptyState('Acceso restringido','Su usuario no tiene permiso para ver importes y recaudación.','lock')}</div>`;
+      return;
+    }
     root.innerHTML=`
       <div class="page-head no-print">
         <div><div class="page-title">Reportes</div><div class="page-sub">Reporte diario y mensual, listo para imprimir o exportar</div></div>

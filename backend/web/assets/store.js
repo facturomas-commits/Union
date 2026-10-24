@@ -3,6 +3,7 @@ export const state = {
   company: null,
   settings: {},
   modules: [],
+  canViewFinancials: false,
   latest: null,
   today: localISO(new Date()),
 };
@@ -28,4 +29,8 @@ export function hasModule(id){
   if (!state.user) return false;
   if (state.user.role === 'superadmin') return true;
   return state.modules.includes(id);
+}
+
+export function canSeeMoney(){
+  return !!state.user && state.canViewFinancials === true;
 }

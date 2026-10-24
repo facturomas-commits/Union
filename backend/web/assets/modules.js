@@ -19,9 +19,21 @@ export const ROLE_MODULES = {
   superadmin: ALL_MODULES,
   admin: ALL_MODULES,
   supervisor: ['dashboard','schedules','colectivos','camion','fuel','expenses','maintenance','masters','reports'],
-  operator: ['dashboard','schedules','colectivos','camion','fuel','expenses','maintenance','reports'],
-  viewer: ['dashboard','schedules','colectivos','camion','fuel','expenses','maintenance','reports'],
+  operator: ['dashboard','schedules','colectivos','camion','fuel','expenses','maintenance'],
+  viewer: ['dashboard','schedules','colectivos','camion','fuel','expenses','maintenance'],
 };
+
+export const ROLE_FINANCIALS = {
+  superadmin: true,
+  admin: true,
+  supervisor: true,
+  operator: false,
+  viewer: false,
+};
+
+export function defaultFinancials(role){
+  return ROLE_FINANCIALS[role] === true;
+}
 
 export function defaultModules(role){
   return ROLE_MODULES[role] || ROLE_MODULES.viewer;

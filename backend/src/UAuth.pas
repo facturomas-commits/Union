@@ -15,6 +15,7 @@ type
     FullName: string;
     Role: string;
     MustChangePassword: Boolean;
+    CanViewFinancials: Boolean;
     Modules: TArray<string>;
     function IsSuper: Boolean;
     function IsAdmin: Boolean;
@@ -99,13 +100,13 @@ const
     'dashboard', 'schedules', 'colectivos', 'camion',
     'fuel', 'expenses', 'maintenance', 'masters', 'reports'
   );
-  OPERATOR_MODULES: array[0..7] of string = (
+  OPERATOR_MODULES: array[0..6] of string = (
     'dashboard', 'schedules', 'colectivos', 'camion',
-    'fuel', 'expenses', 'maintenance', 'reports'
+    'fuel', 'expenses', 'maintenance'
   );
-  VIEWER_MODULES: array[0..7] of string = (
+  VIEWER_MODULES: array[0..6] of string = (
     'dashboard', 'schedules', 'colectivos', 'camion',
-    'fuel', 'expenses', 'maintenance', 'reports'
+    'fuel', 'expenses', 'maintenance'
   );
 
 function DefaultModules(const ARole: string): TArray<string>;
@@ -132,6 +133,11 @@ begin
     SetLength(Result, Length(VIEWER_MODULES));
     for I := 0 to High(VIEWER_MODULES) do Result[I] := VIEWER_MODULES[I];
   end;
+end;
+
+function DefaultFinancials(const ARole: string): Boolean;
+begin
+  Result := (ARole = 'superadmin') or (ARole = 'admin') or (ARole = 'supervisor');
 end;
 
 function AuthInfo: TAuthInfo;
@@ -192,7 +198,7 @@ end;
 
 procedure FillAuthFromJson(AObj: TJSONObject);
 var
-  LModules: TJSONValue;
+  LModules, LFin: TJSONValue;
   LArr: TJSONArray;
   I: Integer;
 begin
@@ -203,6 +209,12 @@ begin
   GAuth.FullName := GetStr(AObj, 'full_name');
   GAuth.Role := GetStr(AObj, 'role', 'viewer');
   GAuth.MustChangePassword := GetBool(AObj, 'must_change_password', False);
+
+  LFin := AObj.FindValue('can_view_financials');
+  if Assigned(LFin) and not (LFin is TJSONNull) then
+    GAuth.CanViewFinancials := GetBool(AObj, 'can_view_financials', False)
+  else
+    GAuth.CanViewFinancials := DefaultFinancials(GAuth.Role);
 
   LModules := AObj.FindValue('allowed_modules');
   if Assigned(LModules) and (LModules is TJSONArray) then
@@ -216,11 +228,85 @@ begin
     GAuth.Modules := DefaultModules(GAuth.Role);
 end;
 
+const
+  FINANCIAL_KEYS: array[0..45] of string = (
+    'price', 'fare_total', 'revenue', 'revenue_ida', 'revenue_vuelta',
+    'fuel_amount', 'oncology_amount', 'ticket_office_amount', 'mp_amount', 'other_amount',
+    'surplus', 'amount', 'total_amount', 'net_amount', 'vat_amount', 'driver_commission',
+    'cost', 'total_costs', 'total_income_net', 'total_income_gross', 'margin',
+    'base_fare', 'per_km', 'max_fare', 'price_per_liter', 'tariff', 'commission_pct', 'vat_pct',
+    'bus_revenue', 'bus_fuel', 'bus_deductions', 'bus_surplus',
+    'freight_net', 'freight_vat', 'freight_total', 'freight_commission',
+    'maintenance', 'maintenance_total', 'total_mantenimiento', 'total_combustible',
+    'general_total', 'general_expenses', 'general',
+    'abono_price', 'total_abonos', 'total_cobros'
+  );
+
+function IsFinancialKey(const AKey: string): Boolean;
+var
+  LKey: string;
+  I: Integer;
+begin
+  LKey := AKey.ToLower;
+  for I := 0 to High(FINANCIAL_KEYS) do
+    if FINANCIAL_KEYS[I] = LKey then
+      Exit(True);
+  Result := False;
+end;
+
+procedure StripFinancialValue(AValue: TJSONValue);
+var
+  LObj: TJSONObject;
+  LArr: TJSONArray;
+  I: Integer;
+  LName: string;
+begin
+  if AValue is TJSONObject then
+  begin
+    LObj := TJSONObject(AValue);
+    for I := LObj.Count - 1 downto 0 do
+    begin
+      LName := LObj.Pairs[I].JsonString.Value;
+      if IsFinancialKey(LName) then
+        LObj.RemovePair(LName).Free
+      else
+        StripFinancialValue(LObj.Pairs[I].JsonValue);
+    end;
+  end
+  else if AValue is TJSONArray then
+  begin
+    LArr := TJSONArray(AValue);
+    for I := 0 to LArr.Count - 1 do
+      StripFinancialValue(LArr.Items[I]);
+  end;
+end;
+
+procedure StripFinancials(Res: THorseResponse);
+var
+  LContentType, LContent: string;
+  LValue: TJSONValue;
+begin
+  LContentType := Res.RawWebResponse.ContentType.ToLower;
+  if Pos('application/json', LContentType) = 0 then
+    Exit;
+  LContent := Res.RawWebResponse.Content;
+  if LContent.Trim.IsEmpty then
+    Exit;
+  LValue := TJSONObject.ParseJSONValue(LContent);
+  if not Assigned(LValue) then
+    Exit;
+  try
+    StripFinancialValue(LValue);
+    Res.Send(LValue.ToJSON);
+  finally
+    LValue.Free;
+  end;
+end;
+
 function PathModuleAllowed(const APath, AMethod: string): Boolean;
 var
   LPath, LMethod: string;
-begin
-  LPath := APath.ToLower;
+begin  LPath := APath.ToLower;
   LMethod := AMethod.ToUpper;
 
   if LPath = '/api/reports/latest' then Exit(True);
@@ -299,7 +385,8 @@ begin
     '  ''id'', u.id, ''company_id'', u.company_id, ''username'', u.username,' +
     '  ''full_name'', u.full_name, ''role'', u.role,' +
     '  ''must_change_password'', u.must_change_password,' +
-    '  ''allowed_modules'', u.allowed_modules) ' +
+    '  ''allowed_modules'', u.allowed_modules,' +
+    '  ''can_view_financials'', u.can_view_financials) ' +
     'from sessions s join users u on u.id = s.user_id ' +
     'where s.token_hash = :p0 and s.expires_at > now() and u.active',
     [LHash]);
@@ -326,7 +413,17 @@ begin
       SendError(Res, 'No tiene acceso a este módulo', 403);
       raise EHorseCallbackInterrupted.Create;
     end;
+
+    if (not GAuth.CanViewFinancials) and LPath.StartsWith('/api/reports') and
+       (LPath <> '/api/reports/latest') and (not LPath.StartsWith('/api/reports/audit')) then
+    begin
+      SendError(Res, 'No tiene permiso para ver importes y recaudación', 403);
+      raise EHorseCallbackInterrupted.Create;
+    end;
+
     Next;
+    if not GAuth.CanViewFinancials then
+      StripFinancials(Res);
   finally
     LValue.Free;
     GAuth := Default(TAuthInfo);
@@ -364,7 +461,8 @@ begin
       '  ''id'', u.id, ''company_id'', u.company_id, ''username'', u.username,' +
       '  ''full_name'', u.full_name, ''role'', u.role,' +
       '  ''must_change_password'', u.must_change_password,' +
-      '  ''allowed_modules'', u.allowed_modules) ' +
+      '  ''allowed_modules'', u.allowed_modules,' +
+      '  ''can_view_financials'', u.can_view_financials) ' +
       'from users u where u.username = :p0 and u.active ' +
       'and u.password_hash = crypt(:p1, u.password_hash)',
       [LUsername, LPassword]);
@@ -408,6 +506,7 @@ begin
       LResp.AddPair('user', TJSONObject(LValue.Clone));
       LResp.AddPair('must_change_password', TJSONBool.Create(GAuth.MustChangePassword));
       LResp.AddPair('modules', ModulesAsJson);
+      LResp.AddPair('can_view_financials', TJSONBool.Create(GAuth.CanViewFinancials));
       SetSessionCookie(Res, LToken);
       SendJsonText(Res, LResp.ToJSON, 200);
     finally
@@ -458,6 +557,7 @@ begin
     if Assigned(LValue) and (LValue is TJSONObject) then
     begin
       TJSONObject(LValue).AddPair('modules', ModulesAsJson);
+      TJSONObject(LValue).AddPair('can_view_financials', TJSONBool.Create(GAuth.CanViewFinancials));
       SendJsonText(Res, TJSONObject(LValue).ToJSON, 200);
     end
     else

@@ -9,9 +9,9 @@ Todas las respuestas son JSON. Errores: `{ "error": "mensaje" }`.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/auth/login` | `{username, password}` → token, usuario y `modules` |
+| POST | `/auth/login` | `{username, password}` → token, usuario, `modules` y `can_view_financials` |
 | POST | `/auth/logout` | Cierra sesión |
-| GET | `/auth/me` | Usuario, empresa, configuración y `modules` |
+| GET | `/auth/me` | Usuario, empresa, configuración, `modules` y `can_view_financials` |
 | POST | `/auth/change-password` | `{current_password, new_password}` |
 
 Los endpoints de cada módulo verifican `allowed_modules`. Si el módulo no está permitido, responden **403**.
@@ -27,11 +27,14 @@ Los endpoints de cada módulo verifican `allowed_modules`. Si el módulo no est�
 | GET/POST | `/routes` |
 | GET/PUT/DELETE | `/routes/:id` |
 | GET/POST | `/users` (admin) |
-| PUT/DELETE | `/users/:id` (admin) || GET/POST | `/companies` (admin/super) |
+| PUT/DELETE | `/users/:id` (admin) |
+| GET/POST | `/companies` (admin/super) |
 | PUT/DELETE | `/companies/:id` (super) |
 | GET/POST | `/settings` (admin) |
 
-`POST/PUT /users` acepta `allowed_modules: ["dashboard","colectivos", ...]`. Si se envía `null` o se omite, se usan los módulos por defecto del rol.
+`POST/PUT /users` acepta `allowed_modules: ["dashboard","colectivos", ...]` y `can_view_financials: true|false`. Si `allowed_modules` se envía `null` o se omite, se usan los módulos por defecto del rol; si `can_view_financials` se omite, se usa el valor por defecto del rol.
+
+Los usuarios sin `can_view_financials` reciben las respuestas JSON sin campos monetarios y no pueden acceder a `/reports/*` ni a las exportaciones (403).
 
 ## Programación de servicios
 
