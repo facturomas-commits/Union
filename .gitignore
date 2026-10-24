@@ -1,0 +1,25 @@
+# Build / binarios
+backend/Win64/
+backend/**/*.dcu
+backend/**/*.exe
+backend/**/*.dll
+backend/**/*.log
+backend/**/logs/
+backend/**/out.log
+backend/**/err.log
+
+# Datos locales / exportaciones
+*.csv
+*.dump
+*.bak
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+
+# Editores / sistema
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
