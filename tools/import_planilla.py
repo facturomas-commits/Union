@@ -195,6 +195,7 @@ def main():
     service_rows = []
     fuel_rows = []
     expense_rows = []
+    last_ida = {}
     for r in range(2, 10):
         row = s1.get(r, {})
         if not row.get("A"):
@@ -222,11 +223,20 @@ def main():
         did = {"Ezequiel G.": 1, "Doprado": 2, "Pereira Daniel": 3}.get(driver.strip())
         gid = {"Sosa": 4}.get(guard.strip())
 
+        upper = label.upper().replace(" ", "")
+        direction = "vuelta" if (upper.startswith("VTA") or "PS-SJ" in upper) else "ida"
+        key = (d, str(vehicle_no).strip())
+        return_of = "NULL"
+        if direction == "ida":
+            last_ida[key] = sid
+        elif key in last_ida:
+            return_of = str(last_ida[key])
+
         service_rows.append(
             f"  ({sid}, 1, {sql_date(d)}, 1, {vid}, {did if did else 'NULL'}, {gid if gid else 'NULL'}, "
             f"{sql_str(t)}, {sql_str(label)}, {km}, {tf if tf is not None else 'NULL'}, "
             f"{tt if tt is not None else 'NULL'}, {revenue}, 'closed', "
-            f"{sql_date(d)}::timestamp + time '23:59', 1, 1)"
+            f"{sql_date(d)}::timestamp + time '23:59', 1, 1, {sql_str(direction)}, {return_of})"
         )
         if fuel_amount > 0 or fuel_liters > 0:
             ppl = (fuel_amount / fuel_liters) if fuel_liters > 0 else 0
@@ -247,7 +257,7 @@ def main():
 
     add("INSERT INTO services (id, company_id, service_date, route_id, vehicle_id, driver_id, guard_id,")
     add("  departure_time, schedule_label, km, ticket_from, ticket_to, fare_total, status,")
-    add("  closed_at, closed_by, created_by) VALUES")
+    add("  closed_at, closed_by, created_by, direction, return_of_id) VALUES")
     add(",\n".join(service_rows) + ";")
     add("")
 

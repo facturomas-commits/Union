@@ -11,7 +11,7 @@ uses
   Horse, UHttp, UAuth, UApi, UDB, ULog;
 
 const
-  SERVICE_FIELDS: array[0..11] of TFieldDef = (
+  SERVICE_FIELDS: array[0..13] of TFieldDef = (
     (Name: 'service_date';   Kind: fkDate; Required: True),
     (Name: 'route_id';       Kind: fkInt;  Required: True),
     (Name: 'vehicle_id';     Kind: fkInt;  Required: True),
@@ -23,7 +23,9 @@ const
     (Name: 'ticket_from';    Kind: fkInt;  Required: False),
     (Name: 'ticket_to';      Kind: fkInt;  Required: False),
     (Name: 'fare_total';     Kind: fkNum;  Required: False),
-    (Name: 'notes';          Kind: fkText; Required: False)
+    (Name: 'notes';          Kind: fkText; Required: False),
+    (Name: 'direction';      Kind: fkText; Required: False),
+    (Name: 'return_of_id';   Kind: fkInt;  Required: False)
   );
 
   FUEL_FIELDS: array[0..9] of TFieldDef = (
@@ -75,6 +77,39 @@ begin
             (AValue = 'mp') or (AValue = 'other');
 end;
 
+function ValidDirection(const AValue: string): Boolean;
+begin
+  Result := (AValue = 'ida') or (AValue = 'vuelta');
+end;
+
+function CreateReturnFor(AOutboundId, ACompany: Integer; const AReturnTime: string;
+  out AErr: string): Integer;
+var
+  LLabel: string;
+  LUserId: Variant;
+begin
+  AErr := '';
+  LLabel := 'VUELTA ' + Copy(AReturnTime, 1, 5);
+  if GAuth.UserId > 0 then LUserId := GAuth.UserId else LUserId := 1;
+  try
+    Result := TDB.ExecRetId(
+      'insert into services (company_id, service_date, route_id, vehicle_id, driver_id, guard_id,' +
+      ' departure_time, schedule_label, direction, return_of_id, km, fare_total, status, notes, created_by)' +
+      ' select company_id, service_date, route_id, vehicle_id, driver_id, guard_id,' +
+      ' :p0::time, :p1, ''vuelta'', id, km, 0, ''open'', ''Vuelta generada automáticamente'', :p2' +
+      ' from services where id = :p3 and company_id = :p4 returning id',
+      [AReturnTime, LLabel, LUserId, AOutboundId, ACompany]);
+    if Result <= 0 then
+      AErr := 'No se pudo generar la vuelta';
+  except
+    on E: Exception do
+    begin
+      AErr := E.Message;
+      Result := 0;
+    end;
+  end;
+end;
+
 function MonthStart: string;
 begin
   Result := Copy(TodayISO, 1, 7) + '-01';
@@ -86,13 +121,14 @@ procedure ListServices(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LSQL: string;
   LParams: TArray<Variant>;
-  LFrom, LTo, LStatus: string;
+  LFrom, LTo, LStatus, LDirection: string;
   LVehicle: Integer;
 begin
   try
     LFrom := QueryValue(Req, 'date_from', MonthStart);
     LTo := QueryValue(Req, 'date_to', TodayISO);
     LStatus := QueryValue(Req, 'status', '');
+    LDirection := QueryValue(Req, 'direction', '');
     LVehicle := QueryInt(Req, 'vehicle_id', 0);
 
     LSQL := 'select coalesce(json_agg(row_to_json(t)), ''[]'') from (' +
@@ -112,6 +148,12 @@ begin
       LSQL := LSQL + ' and vehicle_id = :p' + IntToStr(Length(LParams));
       SetLength(LParams, Length(LParams) + 1);
       LParams[High(LParams)] := LVehicle;
+    end;
+    if not LDirection.IsEmpty then
+    begin
+      LSQL := LSQL + ' and direction = :p' + IntToStr(Length(LParams));
+      SetLength(LParams, Length(LParams) + 1);
+      LParams[High(LParams)] := LDirection;
     end;
     LSQL := LSQL + ' order by service_date desc, departure_time) t';
     SendList(Res, LSQL, LParams);
@@ -214,9 +256,10 @@ end;
 procedure CreateService(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr: string;
+  LErr, LDirection, LReturnTime: string;
   LId, LCompany: Integer;
-  LRoute, LVehicle: Integer;
+  LRoute, LVehicle, LReturnId: Integer;
+  LCreateReturn: Boolean;
 begin
   if not RequireWrite(Res) then Exit;
   LBody := nil;
@@ -225,6 +268,15 @@ begin
     LCompany := BodyCompany(Req, LBody);
     LRoute := GetInt(LBody, 'route_id', 0);
     LVehicle := GetInt(LBody, 'vehicle_id', 0);
+    LDirection := GetStr(LBody, 'direction', 'ida');
+    LCreateReturn := GetBool(LBody, 'create_return', False);
+    LReturnTime := GetStr(LBody, 'return_departure_time', '');
+    if not ValidDirection(LDirection) then
+    begin SendError(Res, 'Dirección inválida: use ida o vuelta', 400); Exit; end;
+    if LCreateReturn and (LDirection <> 'ida') then
+    begin SendError(Res, 'Solo un servicio de ida puede generar su vuelta', 400); Exit; end;
+    if LCreateReturn and LReturnTime.Trim.IsEmpty then
+    begin SendError(Res, 'Indique el horario de la vuelta', 400); Exit; end;
     if TDB.QInt('select count(*) from routes where id = :p0 and company_id = :p1',
       [LRoute, LCompany]) = 0 then
     begin SendError(Res, 'Ruta inválida para la empresa', 400); Exit; end;
@@ -242,6 +294,16 @@ begin
       end;
       TDB.Exec('update services set created_by = :p0 where id = :p1', [GAuth.UserId, LId]);
       ApplyServiceNested(LId, LCompany, LBody);
+      if LCreateReturn then
+      begin
+        LReturnId := CreateReturnFor(LId, LCompany, Copy(LReturnTime, 1, 8), LErr);
+        if LReturnId <= 0 then
+        begin
+          TDB.RollbackTx;
+          SendError(Res, LErr, 400);
+          Exit;
+        end;
+      end;
       TDB.CommitTx;
     except
       TDB.RollbackTx;
@@ -259,8 +321,9 @@ end;
 procedure UpdateService(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr: string;
-  LId, LCompany: Integer;
+  LErr, LDirection, LReturnTime: string;
+  LId, LCompany, LExistingReturn: Integer;
+  LCreateReturn: Boolean;
 begin
   if not RequireWrite(Res) then Exit;
   LBody := nil;
@@ -268,6 +331,15 @@ begin
     if not ParseBodyObject(Req, LBody, LErr) then begin SendError(Res, LErr, 400); Exit; end;
     LId := StrToIntDef(ParamValue(Req, 'id', '0'), 0);
     LCompany := BodyCompany(Req, LBody);
+    LDirection := GetStr(LBody, 'direction', '');
+    if LDirection.IsEmpty then
+      LDirection := TDB.Q('select direction from services where id = :p0 and company_id = :p1', [LId, LCompany]);
+    if not ValidDirection(LDirection) then
+    begin SendError(Res, 'Dirección inválida: use ida o vuelta', 400); Exit; end;
+    LCreateReturn := GetBool(LBody, 'create_return', False);
+    LReturnTime := GetStr(LBody, 'return_departure_time', '');
+    if LCreateReturn and (LDirection <> 'ida') then
+    begin SendError(Res, 'Solo un servicio de ida puede generar su vuelta', 400); Exit; end;
     if Has(LBody, 'route_id') and
        (TDB.QInt('select count(*) from routes where id = :p0 and company_id = :p1',
          [GetInt(LBody, 'route_id', 0), LCompany]) = 0) then
@@ -286,6 +358,30 @@ begin
         Exit;
       end;
       ApplyServiceNested(LId, LCompany, LBody);
+      if LCreateReturn then
+      begin
+        LExistingReturn := TDB.QInt(
+          'select coalesce(max(id),0) from services where return_of_id = :p0 and direction = ''vuelta''', [LId]);
+        if LExistingReturn <= 0 then
+        begin
+          if LReturnTime.Trim.IsEmpty then
+          begin
+            TDB.RollbackTx;
+            SendError(Res, 'Indique el horario de la vuelta', 400);
+            Exit;
+          end;
+          if CreateReturnFor(LId, LCompany, Copy(LReturnTime, 1, 8), LErr) <= 0 then
+          begin
+            TDB.RollbackTx;
+            SendError(Res, LErr, 400);
+            Exit;
+          end;
+        end
+        else if not LReturnTime.Trim.IsEmpty then
+          TDB.Exec(
+            'update services set departure_time = :p0::time, schedule_label = :p1 where id = :p2 and company_id = :p3',
+            [Copy(LReturnTime, 1, 8), 'VUELTA ' + Copy(LReturnTime, 1, 5), LExistingReturn, LCompany]);
+      end;
       TDB.CommitTx;
     except
       TDB.RollbackTx;

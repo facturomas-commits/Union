@@ -119,6 +119,10 @@ begin
     ' coalesce(sum(surplus),0) as surplus,' +
     ' coalesce(sum(km),0) as km,' +
     ' coalesce(sum(tickets_count),0) as tickets,' +
+    ' coalesce(sum(case when direction = ''ida'' then revenue else 0 end),0) as revenue_ida,' +
+    ' coalesce(sum(case when direction = ''vuelta'' then revenue else 0 end),0) as revenue_vuelta,' +
+    ' coalesce(sum(case when direction = ''ida'' then tickets_count else 0 end),0) as tickets_ida,' +
+    ' coalesce(sum(case when direction = ''vuelta'' then tickets_count else 0 end),0) as tickets_vuelta,' +
     ' coalesce(sum(case when status = ''open'' then 1 else 0 end),0) as open_services ' +
     'from v_services where company_id = :p0 and service_date = :p1::date) t',
     [ACompany, ADate]);
@@ -445,7 +449,8 @@ begin
     try
       LQry.Connection := TDB.Conn;
       LQry.SQL.Text :=
-        'select service_date, departure_time, schedule_label, vehicle_no, driver_name, guard_name,' +
+        'select service_date, departure_time, schedule_label, direction, service_origin, service_destination,' +
+        ' vehicle_no, driver_name, guard_name,' +
         ' ticket_from, ticket_to, tickets_count, revenue, fuel_amount, fuel_liters,' +
         ' oncology_amount, ticket_office_amount, mp_amount, other_amount, surplus, km, status' +
         ' from v_services where company_id = :p0 and service_date = :p1::date order by departure_time';
@@ -455,7 +460,7 @@ begin
 
       LSB.AppendLine('REPORTE DIARIO - COLECTIVOS');
       LSB.AppendLine('Fecha;' + LDate);
-      LSB.AppendLine('Horario;Coche;Chofer;Guarda;Boleto desde;Boleto hasta;Cantidad;' +
+      LSB.AppendLine('Horario;Dirección;Recorrido;Coche;Chofer;Guarda;Boleto desde;Boleto hasta;Cantidad;' +
         'Recaudación;Gasoil $;Gasoil L;Oncológico;Boleterías;MP;Otros;Sobró;Km;Estado');
 
       LTotalRevenue := 0; LTotalFuel := 0; LTotalDed := 0; LTotalSurplus := 0;
@@ -463,6 +468,9 @@ begin
       while not LQry.Eof do
       begin
         LSB.Append(CsvEscape(FormatDateTime('hh:nn', LQry.FieldByName('departure_time').AsDateTime))).Append(';');
+        LSB.Append(CsvEscape(IfThen(LQry.FieldByName('direction').AsString = 'vuelta', 'Vuelta', 'Ida'))).Append(';');
+        LSB.Append(CsvEscape(LQry.FieldByName('service_origin').AsString + ' -> ' +
+          LQry.FieldByName('service_destination').AsString)).Append(';');
         LSB.Append(CsvEscape(LQry.FieldByName('vehicle_no').AsString)).Append(';');
         LSB.Append(CsvEscape(LQry.FieldByName('driver_name').AsString)).Append(';');
         LSB.Append(CsvEscape(LQry.FieldByName('guard_name').AsString)).Append(';');
@@ -496,7 +504,7 @@ begin
       end;
 
       LSB.AppendLine(JoinSemi([
-        'TOTALES', '', '', '', '', '', '',
+        'TOTALES', '', '', '', '', '', '', '', '',
         CsvNumber(LTotalRevenue), CsvNumber(LTotalFuel), CsvNumber(LTotalLiters),
         CsvNumber(LTotalOnc), CsvNumber(LTotalTick), CsvNumber(LTotalMp),
         CsvNumber(LTotalOther), CsvNumber(LTotalSurplus), CsvNumber(LTotalKm), ''

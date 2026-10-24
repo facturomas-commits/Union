@@ -102,8 +102,8 @@ async function loadDaily(report,date){
           <tbody>${services.length?services.map(s=>{
             const rowDed=Number(s.oncology_amount||0)+Number(s.ticket_office_amount||0)+Number(s.mp_amount||0)+Number(s.other_amount||0);
             return `<tr>
-            <td>${ui.timeHM(s.departure_time)}<div class="sub">${ui.esc(s.schedule_label||'')}</div></td>
-            <td>#${ui.esc(s.vehicle_no)}</td>
+            <td>${ui.timeHM(s.departure_time)}<div class="sub">${s.direction==='vuelta'?'Vuelta':'Ida'} · ${ui.esc(s.schedule_label||'')}</div></td>
+            <td>#${ui.esc(s.vehicle_no)}<div class="sub">${ui.esc(s.service_origin||'')} → ${ui.esc(s.service_destination||'')}</div></td>
             <td>${ui.esc(s.driver_name||'—')}</td>
             <td>${ui.esc(s.guard_name||'—')}</td>
             <td class="num">${s.ticket_from??'—'}–${s.ticket_to??'—'}</td>
@@ -156,6 +156,7 @@ async function loadDaily(report,date){
         </div>
         <div class="tiny muted" style="margin-top:8px">
           Colectivos: ${ui.money(c.bus_revenue)} de recaudación · ${ui.money(c.bus_fuel)} de gasoil · ${ui.money(c.bus_deductions)} de deducciones · ${ui.num(c.bus_km_per_liter)} km/l.
+          <br>Ida: ${ui.money(t.revenue_ida)} (${ui.integer(t.tickets_ida)} boletos) · Vuelta: ${ui.money(t.revenue_vuelta)} (${ui.integer(t.tickets_vuelta)} boletos).
           Camión: ${ui.money(c.freight_net)} neto · ${ui.money(c.freight_commission)} comisión chofer.
           Mantenimiento: ${ui.money(c.maintenance)}. Gastos generales: ${ui.money(c.general_expenses)}.
         </div>

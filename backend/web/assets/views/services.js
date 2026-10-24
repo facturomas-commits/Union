@@ -25,11 +25,18 @@ function deduction(s){
   return Number(s.oncology_amount||0)+Number(s.ticket_office_amount||0)+Number(s.mp_amount||0)+Number(s.other_amount||0);
 }
 
+function dirBadge(d){
+  return d==='vuelta'
+    ? '<span class="badge purple">Vuelta</span>'
+    : '<span class="badge blue">Ida</span>';
+}
+
 function rowHtml(s, canEdit){
   return `<tr>
     <td class="nowrap">${ui.dateDMY(s.service_date)}</td>
+    <td>${dirBadge(s.direction)}</td>
     <td class="nowrap"><strong>${ui.timeHM(s.departure_time)}</strong><div class="sub">${ui.esc(s.schedule_label||'')}</div></td>
-    <td><strong>#${ui.esc(s.vehicle_no)}</strong><div class="sub">${ui.esc(s.route_code||'')}</div></td>
+    <td><strong>#${ui.esc(s.vehicle_no)}</strong><div class="sub">${ui.esc(s.service_origin||'')} → ${ui.esc(s.service_destination||'')}</div></td>
     <td>${ui.esc(s.driver_name||'—')}<div class="sub">${ui.esc(s.guard_name||'')}</div></td>
     <td class="num">${ui.integer(s.tickets_count)}</td>
     <td class="num">${ui.money(s.revenue)}</td>
@@ -63,12 +70,13 @@ export default {
           <div class="field"><label>Desde</label><input type="date" id="f-from" value="${range.from}"></div>
           <div class="field"><label>Hasta</label><input type="date" id="f-to" value="${range.to}"></div>
           <div class="field wide"><label>Vehículo</label><select id="f-vehicle"><option value="">Todos</option>${ui.options(c.vehicles,'id',v=>`#${v.internal_no} · ${v.kind==='truck'?'Camión':'Colectivo'}`)}</select></div>
+          <div class="field"><label>Dirección</label><select id="f-direction"><option value="">Todas</option><option value="ida">Ida</option><option value="vuelta">Vuelta</option></select></div>
           <div class="field"><label>Estado</label><select id="f-status"><option value="">Todos</option><option value="open">Abiertos</option><option value="closed">Cerrados</option></select></div>
           <div class="spacer"></div>
           <button class="btn btn-secondary" id="btn-reload">${ui.icon('refresh')} Actualizar</button>
         </div>
         <div class="table-wrap"><table class="data">
-          <thead><tr><th>Fecha</th><th>Horario</th><th>Coche</th><th>Chofer / Guarda</th><th class="num">Boletos</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Deducciones</th><th class="num">Sobrante</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Dir.</th><th>Horario</th><th>Coche / Recorrido</th><th>Chofer / Guarda</th><th class="num">Boletos</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Deducciones</th><th class="num">Sobrante</th><th>Estado</th><th></th></tr></thead>
           <tbody id="tbody"></tbody>
         </table></div>
         <div class="card-footer" id="foot"></div>
@@ -84,9 +92,10 @@ export default {
           date_from: root.querySelector('#f-from').value,
           date_to: root.querySelector('#f-to').value,
           vehicle_id: root.querySelector('#f-vehicle').value,
+          direction: root.querySelector('#f-direction').value,
           status: root.querySelector('#f-status').value,
         }));
-        tbody.innerHTML = rows.length ? rows.map(s=>rowHtml(s, canWrite())).join('') : `<tr><td colspan="11">${ui.emptyState('Sin servicios','No hay servicios en el rango seleccionado.','bus')}</td></tr>`;
+        tbody.innerHTML = rows.length ? rows.map(s=>rowHtml(s, canWrite())).join('') : `<tr><td colspan="12">${ui.emptyState('Sin servicios','No hay servicios en el rango seleccionado.','bus')}</td></tr>`;
         const tot = rows.reduce((a,s)=>{
           a.rev += Number(s.revenue||0); a.fuel += Number(s.fuel_amount||0); a.ded += deduction(s); a.sur += Number(s.surplus||0); a.tickets += Number(s.tickets_count||0);
           return a;
@@ -99,12 +108,12 @@ export default {
         tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeService(Number(b.dataset.del), onSaved));
         tbody.querySelectorAll('[data-close-svc]').forEach(b=>b.onclick=()=>toggleClose(Number(b.dataset.closeSvc), rows.find(r=>r.id===Number(b.dataset.closeSvc)), onSaved));
       }catch(ex){
-        tbody.innerHTML = `<tr><td colspan="11">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12">${ui.emptyState('No se pudo cargar','','alert')}</td></tr>`;
         ui.toast(ex.message,'err');
       }
     }
 
-    ['#f-from','#f-to','#f-vehicle','#f-status'].forEach(sel=>root.querySelector(sel).onchange=load);
+    ['#f-from','#f-to','#f-vehicle','#f-direction','#f-status'].forEach(sel=>root.querySelector(sel).onchange=load);
     root.querySelector('#btn-reload').onclick=load;
     const onSaved = async (date)=>{
       if(date){
@@ -134,6 +143,7 @@ async function openForm(id, onDone){
   const body = `
     <div class="section-title">Servicio</div>
     <div class="form-grid cols-3">
+      <div class="field"><label>Dirección *</label><select name="direction"><option value="ida" ${isEdit&&d.direction==='vuelta'?'':'selected'}>Ida</option><option value="vuelta" ${isEdit&&d.direction==='vuelta'?'selected':''}>Vuelta</option></select></div>
       <div class="field"><label>Fecha *</label><input name="service_date" type="date" value="${isEdit?d.service_date:state.today}" required></div>
       <div class="field"><label>Ruta *</label><select name="route_id" required>${ui.options(c.routes,'id',r=>`${r.code?r.code+' · ':''}${r.origin} → ${r.destination}`, isEdit?d.route_id:'')}</select></div>
       <div class="field"><label>Vehículo *</label><select name="vehicle_id" required>${ui.options(c.vehicles,'id',v=>`#${v.internal_no} (${v.kind==='truck'?'camión':'colectivo'})`, isEdit?d.vehicle_id:'')}</select></div>
@@ -143,6 +153,16 @@ async function openForm(id, onDone){
       <div class="field"><label>Horario / etiqueta</label><input name="schedule_label" placeholder="IDA 06.50 SJ-PS" value="${ui.esc(d.schedule_label||'')}"></div>
       <div class="field"><label>Km recorridos</label><input name="km" type="number" step="0.01" value="${isEdit?d.km:''}"></div>
       <div class="field"><label>Estado</label><input value="${isEdit?(d.status==='closed'?'Cerrado':'Abierto'):'Abierto'}" disabled></div>
+    </div>
+
+    <div id="return-box" style="margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:#fbfdff">
+      <div style="font-size:12px;font-weight:800;margin-bottom:8px">Vuelta del servicio</div>
+      <div class="form-grid cols-3">
+        <div class="field"><label>Crear / administrar vuelta</label><label class="check"><input type="checkbox" name="create_return" ${isEdit&&d.return_id?'checked':''}> Sí</label></div>
+        <div class="field"><label>Horario de vuelta</label><input name="return_departure_time" type="time" value="${isEdit&&d.return_departure_time?ui.timeHM(d.return_departure_time):''}"></div>
+        <div class="field"><label>Vuelta vinculada</label><input value="${isEdit&&d.return_id?'#'+d.return_id+' · '+ui.timeHM(d.return_departure_time):'—'}" disabled></div>
+      </div>
+      ${isEdit&&d.direction==='vuelta'&&d.outbound_id?`<div class="tiny muted" style="margin-top:6px">Ida vinculada: #${d.outbound_id} · ${ui.timeHM(d.outbound_departure_time)}</div>`:''}
     </div>
 
     <div class="section-title">Boletos y recaudación</div>
@@ -186,6 +206,11 @@ async function openForm(id, onDone){
         const r=c.routes.find(x=>String(x.id)===String(routeSel.value));
         if (r && !form.elements['km'].value) form.elements['km'].value=r.distance_km;
       });
+      const dirSel=form.elements['direction'];
+      const retBox=form.querySelector('#return-box');
+      const toggleReturn=()=>{ retBox.style.display = dirSel.value==='ida' ? 'block' : 'none'; };
+      dirSel.addEventListener('change',toggleReturn);
+      toggleReturn();
       calc();
     },
     async onSubmit(form, close){
@@ -197,6 +222,9 @@ async function openForm(id, onDone){
         guard_id: form.elements.guard_id.value ? Number(form.elements.guard_id.value) : null,
         departure_time: form.elements.departure_time.value || null,
         schedule_label: form.elements.schedule_label.value,
+        direction: form.elements.direction.value,
+        create_return: form.elements.direction.value==='ida' && ui.boolVal(form,'create_return'),
+        return_departure_time: form.elements.return_departure_time.value || null,
         km: ui.numVal(form,'km'),
         ticket_from: form.elements.ticket_from.value ? Number(form.elements.ticket_from.value) : null,
         ticket_to: form.elements.ticket_to.value ? Number(form.elements.ticket_to.value) : null,
@@ -211,6 +239,7 @@ async function openForm(id, onDone){
         other_amount: ui.numVal(form,'other_amount'),
       };
       if (!payload.service_date || !payload.route_id || !payload.vehicle_id) throw new Error('Complete fecha, ruta y vehículo');
+      if (payload.create_return && !payload.return_departure_time) throw new Error('Indique el horario de la vuelta');
       if (isEdit) await api.put('/services/'+id, payload);
       else await api.post('/services', payload);
       ui.toast(isEdit?'Servicio actualizado':'Servicio creado','ok');

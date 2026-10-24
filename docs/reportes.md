@@ -16,6 +16,8 @@ Fuente: `v_services`, `v_freight_trips`, `v_maintenance`.
 | Km / litros | `services.km` y litros de gasoil |
 | Rendimiento | `km / litros` |
 | Costo por km | `(gasoil + deducciones) / km` |
+| Dirección | `ida` = origen → destino; `vuelta` = destino → origen |
+| Retorno | `return_of_id` vincula la vuelta con su ida |
 
 ### Camión
 

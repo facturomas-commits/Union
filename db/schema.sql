@@ -151,6 +151,9 @@ CREATE TABLE IF NOT EXISTS services (
   guard_id        INTEGER REFERENCES employees(id),
   departure_time  TIME,
   schedule_label  VARCHAR(60),
+  direction       VARCHAR(10) NOT NULL DEFAULT 'ida'
+                  CHECK (direction IN ('ida','vuelta')),
+  return_of_id    INTEGER REFERENCES services(id) ON DELETE CASCADE,
   km              NUMERIC(10,2) NOT NULL DEFAULT 0,
   ticket_from     INTEGER,
   ticket_to       INTEGER,
@@ -167,10 +170,22 @@ CREATE TABLE IF NOT EXISTS services (
     ticket_from IS NULL OR ticket_to IS NULL OR ticket_to >= ticket_from
   )
 );
+-- Compatibilidad con bases creadas antes de incorporar ida/vuelta
+ALTER TABLE services ADD COLUMN IF NOT EXISTS direction VARCHAR(10) NOT NULL DEFAULT 'ida';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS return_of_id INTEGER REFERENCES services(id) ON DELETE CASCADE;
+ALTER TABLE services DROP CONSTRAINT IF EXISTS chk_services_direction;
+ALTER TABLE services ADD CONSTRAINT chk_services_direction CHECK (direction IN ('ida','vuelta'));
+ALTER TABLE services DROP CONSTRAINT IF EXISTS services_return_of_id_fkey;
+ALTER TABLE services ADD CONSTRAINT services_return_of_id_fkey
+  FOREIGN KEY (return_of_id) REFERENCES services(id) ON DELETE CASCADE;
+
 CREATE INDEX IF NOT EXISTS idx_services_company_date ON services(company_id, service_date DESC);
 CREATE INDEX IF NOT EXISTS idx_services_vehicle_date ON services(vehicle_id, service_date DESC);
 CREATE INDEX IF NOT EXISTS idx_services_driver_date ON services(driver_id, service_date DESC);
 CREATE INDEX IF NOT EXISTS idx_services_guard_date ON services(guard_id, service_date DESC);
+CREATE INDEX IF NOT EXISTS idx_services_direction ON services(company_id, service_date, direction);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_services_return_of ON services(return_of_id)
+  WHERE return_of_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS fuel_loads (
   id              SERIAL PRIMARY KEY,
@@ -329,7 +344,8 @@ CREATE TRIGGER trg_freight_trips_upd BEFORE UPDATE ON freight_trips
 -- VISTAS DE LECTURA / REPORTE
 -- ============================================================
 
-CREATE OR REPLACE VIEW v_services AS
+DROP VIEW IF EXISTS v_services;
+CREATE VIEW v_services AS
 SELECT
   s.id,
   s.company_id,
@@ -337,6 +353,10 @@ SELECT
   s.route_id,
   r.code            AS route_code,
   r.name            AS route_name,
+  CASE WHEN s.direction = 'vuelta' THEN r.destination ELSE r.origin END AS service_origin,
+  CASE WHEN s.direction = 'vuelta' THEN r.origin ELSE r.destination END AS service_destination,
+  s.direction,
+  s.return_of_id,
   s.vehicle_id,
   v.internal_no     AS vehicle_no,
   v.plate           AS vehicle_plate,
@@ -371,12 +391,19 @@ SELECT
     - COALESCE(x.oncology, 0)
     - COALESCE(x.ticket_office, 0)
     - COALESCE(x.mp, 0)
-    - COALESCE(x.other, 0)) AS surplus
+    - COALESCE(x.other, 0)) AS surplus,
+  ret.id             AS return_id,
+  ret.departure_time AS return_departure_time,
+  ret.status         AS return_status,
+  out.id             AS outbound_id,
+  out.departure_time AS outbound_departure_time
 FROM services s
 JOIN routes r   ON r.id = s.route_id
 JOIN vehicles v ON v.id = s.vehicle_id
 LEFT JOIN employees d ON d.id = s.driver_id
 LEFT JOIN employees g ON g.id = s.guard_id
+LEFT JOIN services ret ON ret.return_of_id = s.id AND ret.direction = 'vuelta'
+LEFT JOIN services out ON out.id = s.return_of_id AND s.direction = 'vuelta'
 LEFT JOIN LATERAL (
   SELECT SUM(fl.amount) AS amount,
          SUM(fl.liters) AS liters,

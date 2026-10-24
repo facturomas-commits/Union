@@ -40,7 +40,7 @@ freight_trips
 | `employees` | Choferes y guardas | `kind` (`driver`/`guard`), `full_name`, `dni` |
 | `vehicles` | Colectivos y camiones | `kind` (`bus`/`truck`), `internal_no`, `plate`, `odometer` |
 | `routes` | Rutas / líneas | `code`, `origin`, `destination`, `distance_km` |
-| `services` | Servicio diario de colectivo | `service_date`, `route_id`, `vehicle_id`, `driver_id`, `guard_id`, `departure_time`, `km`, `ticket_from`, `ticket_to`, `fare_total`, `status` |
+| `services` | Servicio diario de colectivo | `service_date`, `route_id`, `vehicle_id`, `driver_id`, `guard_id`, `departure_time`, `direction` (`ida`/`vuelta`), `return_of_id`, `km`, `ticket_from`, `ticket_to`, `fare_total`, `status` |
 | `fuel_loads` | Cargas de gasoil | `vehicle_id`, `service_id`, `load_date`, `liters`, `amount`, `full_tank`, `odometer` |
 | `service_expenses` | Deducciones del servicio | `category`, `amount`, `service_id` |
 | `service_closings` | Cierre de caja | `cash_delivered`, `surplus`, `difference` |
@@ -70,7 +70,7 @@ surplus       = fare_total - gasoil - oncológico - boleterías - MP - otros
 
 | Vista | Uso |
 |---|---|
-| `v_services` | Servicios con nombres, agregados de combustible/gastos y sobrante |
+| `v_services` | Servicios con nombres, recorrido según dirección (`service_origin`/`service_destination`), retorno vinculado, agregados de combustible/gastos y sobrante |
 | `v_fuel_loads` | Combustible con vehículo y servicio |
 | `v_expenses` | Gastos con servicio/vehículo |
 | `v_maintenance` | Mantenimiento con `days_left` |
@@ -90,6 +90,10 @@ surplus       = fare_total - gasoil - oncológico - boleterías - MP - otros
 
 ## Decisiones
 
+- Una **ruta** es un corredor con origen y destino. Cada servicio indica su **dirección**: `ida` recorre origen → destino y `vuelta` recorre destino → origen.
+- La **ida** y la **vuelta** se cargan como servicios separados, cada una con su horario de salida y su propia recaudación.
+- Una vuelta puede vincularse a su ida mediante `return_of_id`; la vista `v_services` expone `return_id`, `return_departure_time`, `outbound_id` y `outbound_departure_time`.
+- Al crear una ida con `create_return`, el backend genera la vuelta en la misma transacción.
 - Un servicio puede tener **una** carga de combustible vinculada (índice único parcial). Las cargas no vinculadas se registran por vehículo.
 - Las deducciones del servicio se guardan como filas en `service_expenses` para poder auditar cada categoría.
 - El cierre guarda una foto de los importes para conservar historia aunque luego se edite el servicio.

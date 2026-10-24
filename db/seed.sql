@@ -51,15 +51,15 @@ INSERT INTO routes (id, company_id, code, name, origin, destination, distance_km
 -- Servicios (Libro Diario Colectivos)
 INSERT INTO services (id, company_id, service_date, route_id, vehicle_id, driver_id, guard_id,
   departure_time, schedule_label, km, ticket_from, ticket_to, fare_total, status,
-  closed_at, closed_by, created_by) VALUES
-  (1, 1, '2025-05-01', 1, 2, 1, 4, '06:50:00', 'IDA 06.50 SJ-PS', 130.0, 11746, 11760, 154000.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1),
-  (2, 1, '2025-05-01', 1, 2, 1, 4, '11:20:00', 'VTA 11.20 PS-SJ', 130.0, 11761, 11797, 412600.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1),
-  (3, 1, '2025-05-01', 1, 1, 1, 4, '13:50:00', 'IDA 13.50 SJ-PS', 130.0, 11798, 11823, 233600.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1),
-  (4, 1, '2025-05-01', 1, 1, 1, 4, '17:30:00', 'VTA 17.30 PS-SJ', 130.0, 11824, 11873, 475250.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1),
-  (5, 1, '2025-05-02', 1, 1, 1, 4, '04:50:00', 'IDA 4.50 SJ-PS', 130.0, 11874, 11897, 121800.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1),
-  (6, 1, '2025-05-02', 1, 1, 1, 4, '09:50:00', 'VTA 9.50 PS-SJ', 130.0, 11898, 11921, 151200.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1),
-  (7, 1, '2025-05-02', 1, 2, 2, 4, '12:45:00', 'IDA 12.45 SJ-PS', 130.0, 11922, 11942, 133700.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1),
-  (8, 1, '2025-05-02', 1, 2, 2, 4, '16:15:00', 'VTA 16.15 PS - SJ', 130.0, 11943, 12000, 367200.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1);
+  closed_at, closed_by, created_by, direction, return_of_id) VALUES
+  (1, 1, '2025-05-01', 1, 2, 1, 4, '06:50:00', 'IDA 06.50 SJ-PS', 130.0, 11746, 11760, 154000.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1, 'ida', NULL),
+  (2, 1, '2025-05-01', 1, 2, 1, 4, '11:20:00', 'VTA 11.20 PS-SJ', 130.0, 11761, 11797, 412600.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1, 'vuelta', 1),
+  (3, 1, '2025-05-01', 1, 1, 1, 4, '13:50:00', 'IDA 13.50 SJ-PS', 130.0, 11798, 11823, 233600.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1, 'ida', NULL),
+  (4, 1, '2025-05-01', 1, 1, 1, 4, '17:30:00', 'VTA 17.30 PS-SJ', 130.0, 11824, 11873, 475250.0, 'closed', '2025-05-01'::timestamp + time '23:59', 1, 1, 'vuelta', 3),
+  (5, 1, '2025-05-02', 1, 1, 1, 4, '04:50:00', 'IDA 4.50 SJ-PS', 130.0, 11874, 11897, 121800.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'ida', NULL),
+  (6, 1, '2025-05-02', 1, 1, 1, 4, '09:50:00', 'VTA 9.50 PS-SJ', 130.0, 11898, 11921, 151200.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'vuelta', 5),
+  (7, 1, '2025-05-02', 1, 2, 2, 4, '12:45:00', 'IDA 12.45 SJ-PS', 130.0, 11922, 11942, 133700.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'ida', NULL),
+  (8, 1, '2025-05-02', 1, 2, 2, 4, '16:15:00', 'VTA 16.15 PS - SJ', 130.0, 11943, 12000, 367200.0, 'closed', '2025-05-02'::timestamp + time '23:59', 1, 1, 'vuelta', 7);
 
 -- Combustible vinculado a cada servicio
 INSERT INTO fuel_loads (company_id, vehicle_id, service_id, load_date, liters,

@@ -8,6 +8,8 @@
 | Día / Periodo | derivados de la fecha | — (se calculan en reportes) |
 | Línea | `route_id` | `routes` |
 | Horario | `schedule_label` + `departure_time` | `services` |
+| Sentido (IDA/VTA) | `direction` (`ida`/`vuelta`) | `services` |
+| Retorno | `return_of_id` | `services` |
 | Km. | `km` | `services` |
 | Coche | `vehicle_id` (`internal_no`) | `vehicles` |
 | Chofer | `driver_id` | `employees` |
