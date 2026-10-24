@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS fuel_loads (
   id              SERIAL PRIMARY KEY,
   company_id      INTEGER NOT NULL REFERENCES companies(id),
   vehicle_id      INTEGER NOT NULL REFERENCES vehicles(id),
-  service_id      INTEGER REFERENCES services(id) ON DELETE SET NULL,
+  service_id      INTEGER REFERENCES services(id) ON DELETE CASCADE,
   load_date       DATE NOT NULL,
   liters          NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (liters >= 0),
   price_per_liter NUMERIC(10,2) NOT NULL DEFAULT 0,
