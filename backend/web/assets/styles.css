@@ -152,7 +152,7 @@ button{cursor:pointer}
 /* ---------- Cards / grid ---------- */
 .grid{display:grid;gap:16px}
 .grid-kpi{grid-template-columns:repeat(6,1fr)}
-.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
 .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .grid-main{grid-template-columns:minmax(0,1.65fr) minmax(320px,.85fr);align-items:start}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}

@@ -90,6 +90,7 @@ async function load(body, date){
     const c = d.consolidated || {};
     const marginCls = Number(c.margin) < 0 ? 'neg' : 'pos';
     const series = (d.series||[]).map(x=>({ ...x, label: ui.dateShort(x.date) }));
+    const recent = (d.recent||[]).slice(0,6);
 
     body.innerHTML = `
       <div class="grid grid-kpi" style="margin-bottom:16px">
@@ -147,7 +148,7 @@ async function load(body, date){
         </div>
         <div class="card">
           <div class="card-head"><h3>Actividad reciente</h3><span class="hint">Últimos movimientos</span></div>
-          <div class="list-simple">${recentRows(d.recent)}</div>
+          <div class="list-simple">${recentRows(recent)}</div>
         </div>
       </div>`;
     body.querySelectorAll('a[href^="#/"]').forEach(a=>{});

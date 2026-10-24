@@ -386,7 +386,7 @@ begin
 
     LTargetCompany := TDB.QInt('select coalesce(company_id, 0) from users where id = :p0', [LId]);
     LTargetRole := TDB.Q('select role from users where id = :p0', [LId]);
-    if LTargetCompany = 0 then
+    if TDB.QInt('select count(*) from users where id = :p0', [LId]) = 0 then
     begin SendError(Res, 'Usuario no encontrado', 404); Exit; end;
     if (not GAuth.IsSuper) and (LTargetCompany <> LCompany) then
     begin SendError(Res, 'Usuario no encontrado', 404); Exit; end;
