@@ -1,9 +1,17 @@
 ﻿import { api } from '../api.js';
-import { state, canSeeMoney } from '../store.js';
+import { state, canSeeMoney, canWrite, hasModule } from '../store.js';
 import * as ui from '../ui.js';
 
 function defaultDate(){ return (state.latest&&state.latest.service_date)||state.today; }
 function defaultMonth(){ return defaultDate().slice(0,7); }
+
+function alertItem(a){
+  const target=a.kind==='maintenance'
+    ? `#/maintenance?open=${Number(a.id)}`
+    : `#/colectivos?date=${encodeURIComponent(a.due_date||'')}&open=${Number(a.id)}`;
+  const canOpen=canWrite() && (a.kind==='maintenance'?hasModule('maintenance'):hasModule('colectivos'));
+  return `<div class="alert-item"><div class="alert-ico ${a.kind==='negative_surplus'?'red':(a.kind==='open_service'?'blue':'')}">${ui.icon(a.kind==='maintenance'?'wrench':'alert')}</div><div><strong>${ui.esc(a.message)}</strong><span>Coche #${ui.esc(a.reference)}</span></div><div class="when">${a.kind==='maintenance'?(Number(a.days_left)<0?'Vencido hace '+Math.abs(a.days_left)+' d':'En '+a.days_left+' d'):''}</div>${canOpen?`<a class="btn btn-sm btn-secondary" href="${target}" style="margin-left:8px;white-space:nowrap">${ui.icon('arrow')} Atender</a>`:''}</div>`;
+}
 
 function reportHead(subtitle){
   const c=state.company||{};
@@ -191,7 +199,7 @@ async function loadDaily(report,date){
           Mantenimiento: ${ui.money(c.maintenance)}. Gastos generales: ${ui.money(c.general_expenses)}.
         </div>
       </div>
-      ${alerts.length?`<div class="report-section"><h4>Alertas (${(d.alerts||[]).length})</h4><div class="alert-list card">${alerts.map(a=>`<div class="alert-item"><div class="alert-ico ${a.kind==='negative_surplus'?'red':(a.kind==='open_service'?'blue':'')}">${ui.icon(a.kind==='maintenance'?'wrench':'alert')}</div><div><strong>${ui.esc(a.message)}</strong><span>Coche #${ui.esc(a.reference)}</span></div><div class="when">${a.kind==='maintenance'?(Number(a.days_left)<0?'Vencido hace '+Math.abs(a.days_left)+' d':'En '+a.days_left+' d'):''}</div></div>`).join('')}${(d.alerts||[]).length>6?`<div class="alert-item"><div class="alert-ico blue">${ui.icon('alert')}</div><div><strong>Hay ${(d.alerts||[]).length-6} alertas más</strong><span>Consulte la sección Mantenimiento para verlas todas.</span></div></div>`:''}</div></div>`:''}
+      ${alerts.length?`<div class="report-section"><h4>Alertas (${(d.alerts||[]).length})</h4><div class="alert-list card">${alerts.map(alertItem).join('')}${(d.alerts||[]).length>6?`<div class="alert-item"><div class="alert-ico blue">${ui.icon('alert')}</div><div><strong>Hay ${(d.alerts||[]).length-6} alertas más</strong><span>Abra el Dashboard para verlas y atenderlas.</span></div><a class="btn btn-sm btn-secondary" href="#/dashboard" style="margin-left:8px">Ver dashboard ${ui.icon('arrow')}</a></div>`:''}</div></div>`:''}
       </div>
       <div class="tiny muted" style="text-align:right">Documento generado por UNION · ${new Date().toLocaleString('es-AR')}</div>`;
   }catch(ex){

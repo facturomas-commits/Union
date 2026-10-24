@@ -59,7 +59,11 @@ export default {
   title:'Colectivos',
   subtitle:'Libro diario de recaudación de colectivos',
   async render(root){
+    const params = ui.hashParams();
+    const openId = Number(params.get('open') || 0);
+    const alertDate = params.get('date') || '';
     const range = defaultRange();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(alertDate)){ range.from = alertDate; range.to = alertDate; }
     let c = await loadCats();
     root.innerHTML = `
       <div class="page-head">
@@ -138,6 +142,11 @@ export default {
     const btnNew=root.querySelector('#btn-new');
     if (btnNew) btnNew.onclick=()=>openForm(null, onSaved);
     await load();
+    if (openId){
+      history.replaceState(null,'','#/colectivos');
+      try{ await openForm(openId, onSaved); }
+      catch(ex){ ui.toast(ex.message || 'No se encontró el servicio','err'); }
+    }
   }
 };
 

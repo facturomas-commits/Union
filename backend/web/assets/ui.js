@@ -1,6 +1,11 @@
 /* Utilidades de interfaz */
 import { canSeeMoney } from './store.js';
 
+export function hashParams(){
+  const raw = (location.hash || '').split('?')[1] || '';
+  return new URLSearchParams(raw);
+}
+
 const moneyFmt = new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', minimumFractionDigits:2, maximumFractionDigits:2 });
 const numFmt = new Intl.NumberFormat('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
 const intFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits:0 });

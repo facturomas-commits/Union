@@ -1,5 +1,5 @@
 ﻿import { api } from '../api.js';
-import { state, canWrite, canSeeMoney } from '../store.js';
+import { state, canWrite, canSeeMoney, hasModule } from '../store.js';
 import * as ui from '../ui.js';
 
 function defaultDate(){
@@ -42,12 +42,30 @@ function alertRows(rows){
     const cls = a.kind==='negative_surplus' ? 'red' : (a.kind==='open_service' ? 'blue' : '');
     const ico = a.kind==='maintenance' ? 'wrench' : (a.kind==='negative_surplus' ? 'alert' : 'bus');
     const when = a.kind==='maintenance' ? (Number(a.days_left) < 0 ? `Vencido ${Math.abs(a.days_left)} d` : `En ${a.days_left} d`) : '';
+    const target = a.kind==='maintenance'
+      ? `#/maintenance?open=${Number(a.id)}`
+      : `#/colectivos?date=${encodeURIComponent(a.due_date||'')}&open=${Number(a.id)}`;
+    const canOpen = canWrite() && (a.kind==='maintenance' ? hasModule('maintenance') : hasModule('colectivos'));
     return `<div class="alert-item">
       <div class="alert-ico ${cls}">${ui.icon(ico)}</div>
-      <div><strong>${ui.esc(a.message)}</strong><span>${a.kind==='maintenance'?'Coche #'+ui.esc(a.reference):'Coche #'+ui.esc(a.reference)}</span></div>
+      <div><strong>${ui.esc(a.message)}</strong><span>Coche #${ui.esc(a.reference)}</span></div>
       <div class="when">${ui.esc(when)}</div>
+      ${canOpen?`<a class="btn btn-sm btn-secondary" href="${target}" data-attend style="margin-left:8px;white-space:nowrap" title="Abrir y atender">${ui.icon('arrow')} Atender</a>`:''}
     </div>`;
   }).join('');
+}
+
+function showAlerts(alerts){
+  ui.openModal({
+    title:'Alertas pendientes',
+    subtitle:`${alerts.length} alerta(s) para revisar`,
+    body:`<div class="alert-list" style="max-height:60vh;overflow:auto">${alertRows(alerts)}</div>`,
+    wide:true,
+    hideSubmit:true,
+    onReady(form, close){
+      form.querySelectorAll('a[data-attend]').forEach(a=>a.addEventListener('click',()=>close()));
+    }
+  });
 }
 
 function recentRows(rows){
@@ -128,7 +146,7 @@ async function load(body, date){
         <div class="card">
           <div class="card-head"><h3>Alertas</h3><span class="hint">${(d.alerts||[]).length} pendientes</span></div>
           <div class="alert-list">${alertRows((d.alerts||[]).slice(0,5))}</div>
-          ${(d.alerts||[]).length>5?`<div class="card-footer"><a class="btn btn-sm btn-secondary" href="#/maintenance">Ver todas las alertas ${ui.icon('arrow')}</a></div>`:''}
+          ${(d.alerts||[]).length?`<div class="card-footer"><button type="button" class="btn btn-sm btn-secondary" id="btn-all-alerts">Ver todas las alertas (${(d.alerts||[]).length}) ${ui.icon('arrow')}</button></div>`:''}
         </div>
       </div>
 
@@ -167,7 +185,8 @@ async function load(body, date){
           <div class="list-simple">${recentRows(recent)}</div>
         </div>
       </div>`;
-    body.querySelectorAll('a[href^="#/"]').forEach(a=>{});
+    const allAlerts=body.querySelector('#btn-all-alerts');
+    if(allAlerts) allAlerts.onclick=()=>showAlerts(d.alerts||[]);
   }catch(ex){
     body.innerHTML = `<div class="card">${ui.emptyState('No se pudo cargar el dashboard', ex.message, 'alert')}</div>`;
     ui.toast(ex.message,'err');

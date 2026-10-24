@@ -1,5 +1,5 @@
 import { api, qs } from '../api.js';
-import { state, canWrite } from '../store.js';
+import { state, canWrite, canSeeMoney } from '../store.js';
 import * as ui from '../ui.js';
 
 let vehiclesCache=null;
@@ -22,6 +22,7 @@ export default {
   subtitle:'Reparaciones, services y próximos cambios',
   async render(root){
     const vs=await vehicles();
+    const openId=Number(ui.hashParams().get('open')||0);
     const days=Number(state.settings?.maintenance_alert_days||15);
     root.innerHTML=`
       <div class="page-head">
@@ -72,12 +73,22 @@ export default {
         foot.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:12px"><span><b>${rows.length}</b> registros</span><span>Costo total <b>${ui.money(total)}</b></span></div>`;
         tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>form(Number(b.dataset.edit),rows.find(x=>x.id===Number(b.dataset.edit)),load,vs));
         tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(Number(b.dataset.del),load));
-      }catch(ex){ tbody.innerHTML=`<tr><td colspan="9">${ui.emptyState('No se pudo cargar',ex.message,'alert')}</td></tr>`; }
+        return rows;
+      }catch(ex){ tbody.innerHTML=`<tr><td colspan="9">${ui.emptyState('No se pudo cargar',ex.message,'alert')}</td></tr>`; return []; }
     }
     ['#f-vehicle','#f-days','#f-due'].forEach(s=>root.querySelector(s).onchange=load);
     root.querySelector('#btn-reload').onclick=load;
     const nb=root.querySelector('#btn-new'); if(nb) nb.onclick=()=>form(null,null,load,vs);
-    await load();
+    const rows=await load();
+    if(openId){
+      history.replaceState(null,'','#/maintenance');
+      let m=rows.find(x=>x.id===openId);
+      if(!m){
+        try{ m=await api.get('/maintenance/'+openId); }
+        catch(ex){ ui.toast('No se encontró el registro de mantenimiento','err'); }
+      }
+      if(m) form(openId,m,load,vs);
+    }
   }
 };
 
@@ -95,7 +106,7 @@ function form(id,m,onDone,vs){
         <div class="field"><label>Medidas / repuesto</label><input name="measures" value="${ui.esc(d.measures||'')}" placeholder="Ej: Michelin 11R22.5"></div>
         <div class="field"><label>Próximo cambio</label><input name="next_due" type="date" value="${isEdit&&d.next_due?d.next_due:''}"></div>
         <div class="field"><label>Odómetro</label><input name="odometer" type="number" step="0.1" value="${isEdit&&d.odometer?d.odometer:''}"></div>
-        <div class="field"><label>Costo $</label><input name="cost" type="number" step="0.01" value="${isEdit?d.cost:''}"></div>
+        ${canSeeMoney()?`<div class="field"><label>Costo $</label><input name="cost" type="number" step="0.01" value="${isEdit?d.cost:''}"></div>`:''}
         <div class="field full"><label>Notas</label><textarea name="notes">${ui.esc(d.notes||'')}</textarea></div>
       </div>`,
     async onSubmit(form, close){
@@ -107,9 +118,9 @@ function form(id,m,onDone,vs){
         measures:form.elements.measures.value,
         next_due:form.elements.next_due.value||null,
         odometer:form.elements.odometer.value?ui.numVal(form,'odometer'):null,
-        cost:ui.numVal(form,'cost'),
         notes:form.elements.notes.value,
       };
+      if(canSeeMoney()) payload.cost=ui.numVal(form,'cost');
       if(!payload.vehicle_id||!payload.maintenance_date||!payload.concept) throw new Error('Complete vehículo, fecha y concepto');
       if(isEdit) await api.put('/maintenance/'+id,payload); else await api.post('/maintenance',payload);
       ui.toast(isEdit?'Mantenimiento actualizado':'Mantenimiento registrado','ok'); close(); await onDone();

@@ -178,7 +178,7 @@ Ver detalle y valores por defecto en [`docs/permisos.md`](docs/permisos.md).
 
 ## 8. Estado y próximos pasos
 
-Implementado: autenticación, roles, auditoría, maestros, servicios con combustible/gastos, cierre, combustible, gastos, mantenimiento con alertas, camión con remitos, reportes diario/mensual, CSV, impresión/PDF, migración de la planilla.
+Implementado: autenticación, roles, auditoría, maestros, servicios con combustible/gastos, cierre, combustible, gastos, mantenimiento con alertas, alertas del dashboard con acceso directo a la ficha para atender, listado completo de alertas, camión con remitos, reportes diario/mensual, CSV, impresión/PDF, migración de la planilla.
 
 Pendiente / recomendado:
 

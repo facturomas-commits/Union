@@ -132,7 +132,10 @@ async function renderCurrent(){
     renderNoAccess(content);
     return;
   }
-  if (location.hash !== '#/'+id) history.replaceState(null,'','#/'+id);
+  const rawHash = location.hash || '';
+  const qIndex = rawHash.indexOf('?');
+  const query = qIndex >= 0 ? rawHash.slice(qIndex) : '';
+  if (rawHash !== '#/'+id+query) history.replaceState(null,'','#/'+id+query);
   const view=views[id];
   document.getElementById('ptitle').textContent=view.title || id;
   document.getElementById('psub').textContent=view.subtitle || '';
