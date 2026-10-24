@@ -31,7 +31,7 @@ begin
   end;
 end;
 
-function BuildConsolidated(ATotals, AFreight: TJSONObject; AMaintTotal: Double): TJSONObject;
+function BuildConsolidated(ATotals, AFreight: TJSONObject; AMaintTotal, AGeneralTotal: Double): TJSONObject;
 var
   LBusRevenue, LBusFuel, LBusDed, LBusSurplus, LBusKm, LBusLiters, LBusTickets: Double;
   LFreightNet, LFreightVat, LFreightTotal, LFreightCommission, LFreightKm: Double;
@@ -57,7 +57,7 @@ begin
   LFreightKm := AFreight.GetValue<Double>('km', 0);
 
   LTotalIncomeNet := LBusRevenue + LFreightNet;
-  LTotalCosts := LBusFuel + LBusDed + LFreightCommission + AMaintTotal;
+  LTotalCosts := LBusFuel + LBusDed + LFreightCommission + AMaintTotal + AGeneralTotal;
 
   Result := TJSONObject.Create;
   Result.AddPair('bus_revenue', TJSONNumber.Create(LBusRevenue));
@@ -85,6 +85,7 @@ begin
   Result.AddPair('freight_kilos', TJSONNumber.Create(AFreight.GetValue<Double>('kilos', 0)));
 
   Result.AddPair('maintenance', TJSONNumber.Create(AMaintTotal));
+  Result.AddPair('general_expenses', TJSONNumber.Create(AGeneralTotal));
   Result.AddPair('total_income_net', TJSONNumber.Create(LTotalIncomeNet));
   Result.AddPair('total_income_gross', TJSONNumber.Create(LBusRevenue + LFreightTotal));
   Result.AddPair('total_costs', TJSONNumber.Create(LTotalCosts));
@@ -94,8 +95,8 @@ end;
 
 function BuildDailyObject(ACompany: Integer; const ADate: string): TJSONObject;
 var
-  LServices, LTotals, LFreight, LFreightTotals, LMaint, LAlerts: string;
-  LMaintTotal: Double;
+  LServices, LTotals, LFreight, LFreightTotals, LMaint, LAlerts, LGeneral: string;
+  LMaintTotal, LGeneralTotal: Double;
   LDays: Integer;
 begin
   LDays := AlertDays(ACompany);
@@ -148,6 +149,15 @@ begin
     'select coalesce(sum(cost),0) from maintenance where company_id = :p0 and maintenance_date = :p1::date',
     [ACompany, ADate]);
 
+  LGeneral := TDB.Q(
+    'select coalesce(json_agg(row_to_json(t)), ''[]'') from (' +
+    'select * from v_expenses where company_id = :p0 and expense_date = :p1::date ' +
+    'and service_id is null order by id) t', [ACompany, ADate]);
+
+  LGeneralTotal := TDB.QFloat(
+    'select coalesce(sum(amount),0) from service_expenses where company_id = :p0 ' +
+    'and expense_date = :p1::date and service_id is null', [ACompany, ADate]);
+
   LAlerts := TDB.Q(
     'select coalesce(json_agg(row_to_json(a)), ''[]'') from (' +
     '  select ''maintenance'' as kind, m.id, m.vehicle_no as reference,' +
@@ -175,11 +185,13 @@ begin
   Result.AddPair('freight_totals', JsonObjectOrEmpty(LFreightTotals));
   Result.AddPair('maintenance', JsonArrayOrEmpty(LMaint));
   Result.AddPair('maintenance_total', TJSONNumber.Create(LMaintTotal));
+  Result.AddPair('general_expenses', JsonArrayOrEmpty(LGeneral));
+  Result.AddPair('general_total', TJSONNumber.Create(LGeneralTotal));
   Result.AddPair('alerts', JsonArrayOrEmpty(LAlerts));
   Result.AddPair('consolidated', BuildConsolidated(
     TJSONObject(Result.FindValue('totals')),
     TJSONObject(Result.FindValue('freight_totals')),
-    LMaintTotal));
+    LMaintTotal, LGeneralTotal));
 end;
 
 procedure DailyHandler(Req: THorseRequest; Res: THorseResponse; Next: TProc);
@@ -261,6 +273,7 @@ var
   LCompany: Integer;
   LObj: TJSONObject;
   LMonthStart: string;
+  LGeneralTotal: Double;
 begin
   try
     LMonth := QueryValue(Req, 'month', MonthISO);
@@ -282,15 +295,20 @@ begin
       '         group by trip_date),' +
       ' mt as (select maintenance_date, sum(cost) cost from maintenance where company_id = :p0' +
       '          and maintenance_date >= :p1::date and maintenance_date < (:p1::date + interval ''1 month'')' +
-      '         group by maintenance_date)' +
+      '         group by maintenance_date),' +
+      ' gen as (select expense_date, sum(amount) amount from service_expenses where company_id = :p0' +
+      '          and service_id is null and expense_date >= :p1::date' +
+      '          and expense_date < (:p1::date + interval ''1 month'') group by expense_date)' +
       'select coalesce(json_agg(row_to_json(x) order by x.date), ''[]'') from (' +
       '  select to_char(d.d, ''YYYY-MM-DD'') as date, coalesce(s.revenue,0) revenue,' +
       '         coalesce(s.fuel,0) fuel, coalesce(s.surplus,0) surplus, coalesce(s.liters,0) liters,' +
       '         coalesce(s.km,0) km, coalesce(s.tickets,0) tickets,' +
       '         coalesce(f.net,0) freight_net, coalesce(f.total,0) freight_total,' +
-      '         coalesce(f.commission,0) freight_commission, coalesce(mt.cost,0) maintenance' +
+      '         coalesce(f.commission,0) freight_commission, coalesce(mt.cost,0) maintenance,' +
+      '         coalesce(g.amount,0) general' +
       '    from days d left join svc s on s.service_date = d.d' +
       '    left join fr f on f.trip_date = d.d left join mt on mt.maintenance_date = d.d' +
+      '    left join gen g on g.expense_date = d.d' +
       ') x', [LCompany, LMonthStart]);
 
     LVehicles := TDB.Q(
@@ -324,6 +342,11 @@ begin
       ' coalesce(sum(km),0) km from v_freight_trips where company_id = :p0 and trip_date >= :p1::date' +
       '  and trip_date < (:p1::date + interval ''1 month'')) t', [LCompany, LMonthStart]);
 
+    LGeneralTotal := TDB.QFloat(
+      'select coalesce(sum(amount),0) from service_expenses where company_id = :p0' +
+      ' and service_id is null and expense_date >= :p1::date' +
+      ' and expense_date < (:p1::date + interval ''1 month'')', [LCompany, LMonthStart]);
+
     LObj := TJSONObject.Create;
     try
       LObj.AddPair('month', LMonth);
@@ -332,12 +355,13 @@ begin
       LObj.AddPair('drivers', JsonArrayOrEmpty(LDrivers));
       LObj.AddPair('totals', JsonObjectOrEmpty(LTotals));
       LObj.AddPair('freight_totals', JsonObjectOrEmpty(LFreightTotals));
+      LObj.AddPair('general_total', TJSONNumber.Create(LGeneralTotal));
       LObj.AddPair('consolidated', BuildConsolidated(
         TJSONObject(LObj.FindValue('totals')),
         TJSONObject(LObj.FindValue('freight_totals')),
         TDB.QFloat('select coalesce(sum(cost),0) from maintenance where company_id = :p0' +
           ' and maintenance_date >= :p1::date and maintenance_date < (:p1::date + interval ''1 month'')',
-          [LCompany, LMonthStart])));
+          [LCompany, LMonthStart]), LGeneralTotal));
       SendJsonText(Res, LObj.ToJSON, 200);
     finally
       LObj.Free;
@@ -517,6 +541,25 @@ begin
         CsvNumber(LFreightNet), '', CsvNumber(LFreightTotal),
         CsvNumber(LFreightCommission), CsvNumber(LFreightKmCsv)
       ]));
+      LSB.AppendLine;
+
+      LQry.Close;
+      LQry.SQL.Text :=
+        'select category, description, vehicle_no, amount from v_expenses' +
+        ' where company_id = :p0 and expense_date = :p1::date and service_id is null order by id';
+      LQry.ParamByName('p0').AsInteger := LCompany;
+      LQry.ParamByName('p1').AsString := LDate;
+      LQry.Open;
+      LSB.AppendLine('GASTOS GENERALES DEL DÍA');
+      LSB.AppendLine('Categoría;Concepto;Vehículo;Importe');
+      while not LQry.Eof do
+      begin
+        LSB.Append(CsvEscape(LQry.FieldByName('category').AsString)).Append(';');
+        LSB.Append(CsvEscape(LQry.FieldByName('description').AsString)).Append(';');
+        LSB.Append(CsvEscape(LQry.FieldByName('vehicle_no').AsString)).Append(';');
+        LSB.AppendLine(CsvNumber(LQry.FieldByName('amount').AsFloat));
+        LQry.Next;
+      end;
 
       SendCsv(Res, 'reporte-diario-' + LDate + '.csv', LSB.ToString);
     finally

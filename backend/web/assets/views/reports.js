@@ -78,7 +78,8 @@ async function loadDaily(report,date){
   try{
     const d=await api.daily(date);
     const t=d.totals||{}, ft=d.freight_totals||{}, c=d.consolidated||{};
-    const services=d.services||[], freight=d.freight||[], maint=d.maintenance||[];
+    const services=d.services||[], freight=d.freight||[], maint=d.maintenance||[], general=d.general_expenses||[];
+    const catLabels={oncology:'Oncológico',ticket_office:'Boleterías',mp:'Mercado Pago',other:'Otros'};
     const ded=Number(t.oncology_amount||0)+Number(t.ticket_office_amount||0)+Number(t.mp_amount||0)+Number(t.other_amount||0);
     const alerts=(d.alerts||[]).slice(0,6);
 
@@ -139,6 +140,12 @@ async function loadDaily(report,date){
         <tbody>${maint.map(m=>`<tr><td>#${ui.esc(m.vehicle_no)}</td><td>${ui.esc(m.category)}</td><td>${ui.esc(m.concept)}</td><td>${ui.esc(m.measures||'—')}</td><td>${m.next_due?ui.dateDMY(m.next_due):'—'}</td><td class="num">${ui.money(m.cost)}</td></tr>`).join('')}</tbody></table></div>
       </div>`:''}
 
+      ${general.length?`<div class="report-section"><h4>Gastos generales del día</h4>
+        <div class="table-wrap"><table class="data"><thead><tr><th>Categoría</th><th>Concepto</th><th>Vehículo</th><th class="num">Importe</th></tr></thead>
+        <tbody>${general.map(g=>`<tr><td>${ui.esc(catLabels[g.category]||g.category)}</td><td>${ui.esc(g.description||'—')}</td><td>${g.vehicle_no?'#'+ui.esc(g.vehicle_no):'—'}</td><td class="num">${ui.money(g.amount)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr style="background:#f8fafc;font-weight:900"><td colspan="3">TOTAL</td><td class="num">${ui.money(d.general_total)}</td></tr></tfoot></table></div>
+      </div>`:''}
+
       <div class="report-section">
         <h4>Consolidado del día</h4>
         <div class="summary-strip" style="grid-template-columns:repeat(4,1fr)">
@@ -150,7 +157,7 @@ async function loadDaily(report,date){
         <div class="tiny muted" style="margin-top:8px">
           Colectivos: ${ui.money(c.bus_revenue)} de recaudación · ${ui.money(c.bus_fuel)} de gasoil · ${ui.money(c.bus_deductions)} de deducciones · ${ui.num(c.bus_km_per_liter)} km/l.
           Camión: ${ui.money(c.freight_net)} neto · ${ui.money(c.freight_commission)} comisión chofer.
-          Mantenimiento: ${ui.money(c.maintenance)}.
+          Mantenimiento: ${ui.money(c.maintenance)}. Gastos generales: ${ui.money(c.general_expenses)}.
         </div>
       </div>
       ${alerts.length?`<div class="report-section"><h4>Alertas (${(d.alerts||[]).length})</h4><div class="alert-list card">${alerts.map(a=>`<div class="alert-item"><div class="alert-ico ${a.kind==='negative_surplus'?'red':(a.kind==='open_service'?'blue':'')}">${ui.icon(a.kind==='maintenance'?'wrench':'alert')}</div><div><strong>${ui.esc(a.message)}</strong><span>Coche #${ui.esc(a.reference)}</span></div><div class="when">${a.kind==='maintenance'?(Number(a.days_left)<0?'Vencido hace '+Math.abs(a.days_left)+' d':'En '+a.days_left+' d'):''}</div></div>`).join('')}${(d.alerts||[]).length>6?`<div class="alert-item"><div class="alert-ico blue">${ui.icon('alert')}</div><div><strong>Hay ${(d.alerts||[]).length-6} alertas más</strong><span>Consulte la sección Mantenimiento para verlas todas.</span></div></div>`:''}</div></div>`:''}
@@ -165,7 +172,7 @@ async function loadMonthly(report,month){
   try{
     const m=await api.monthly(month);
     const t=m.totals||{}, ft=m.freight_totals||{}, c=m.consolidated||{};
-    const days=(m.days||[]).filter(d=>Number(d.revenue)||Number(d.freight_net)||Number(d.maintenance));
+    const days=(m.days||[]).filter(d=>Number(d.revenue)||Number(d.freight_net)||Number(d.maintenance)||Number(d.general));
     const chartDays=(m.days||[]).map(d=>({...d,label:ui.dateShort(d.date)}));
     report.innerHTML=`
       ${reportHead('REPORTE MENSUAL DE OPERACIONES')}
@@ -198,8 +205,8 @@ async function loadMonthly(report,month){
       </div>
       <div class="report-section">
         <h4>Días con movimiento</h4>
-        <div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Sobrante</th><th class="num">Boletos</th><th class="num">Km</th><th class="num">Camión neto</th><th class="num">Mantenimiento</th></tr></thead>
-        <tbody>${days.map(d=>`<tr><td>${ui.dateDMY(d.date)}</td><td class="num">${ui.money(d.revenue)}</td><td class="num">${ui.money(d.fuel)}</td><td class="num ${Number(d.surplus)<0?'neg':''}">${ui.money(d.surplus)}</td><td class="num">${ui.integer(d.tickets)}</td><td class="num">${ui.integer(d.km)}</td><td class="num">${ui.money(d.freight_net)}</td><td class="num">${ui.money(d.maintenance)}</td></tr>`).join('')||`<tr><td colspan="8" style="text-align:center;padding:16px;color:var(--muted)">Sin datos</td></tr>`}</tbody></table></div>
+        <div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th class="num">Recaudación</th><th class="num">Gasoil</th><th class="num">Sobrante</th><th class="num">Boletos</th><th class="num">Km</th><th class="num">Camión neto</th><th class="num">Mantenimiento</th><th class="num">Gastos grales</th></tr></thead>
+        <tbody>${days.map(d=>`<tr><td>${ui.dateDMY(d.date)}</td><td class="num">${ui.money(d.revenue)}</td><td class="num">${ui.money(d.fuel)}</td><td class="num ${Number(d.surplus)<0?'neg':''}">${ui.money(d.surplus)}</td><td class="num">${ui.integer(d.tickets)}</td><td class="num">${ui.integer(d.km)}</td><td class="num">${ui.money(d.freight_net)}</td><td class="num">${ui.money(d.maintenance)}</td><td class="num">${ui.money(d.general)}</td></tr>`).join('')||`<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">Sin datos</td></tr>`}</tbody></table></div>
       </div>
       <div class="report-section">
         <h4>Consolidado del mes</h4>
