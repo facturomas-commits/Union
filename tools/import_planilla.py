@@ -137,7 +137,7 @@ def main():
     add("-- Usuarios (cambiar claves al primer ingreso)")
     add("INSERT INTO users (id, company_id, username, full_name, email, password_hash, role, must_change_password) VALUES")
     add("  (1, 1, 'admin', 'Administrador', NULL,")
-    add("   crypt('Admin123!', gen_salt('bf', 12)), 'superadmin', FALSE),")
+    add("   crypt('Admin123!', gen_salt('bf', 12)), 'superadmin', TRUE),")
     add("  (2, 1, 'operador', 'Operador de Tráfico', NULL,")
     add("   crypt('Operador123!', gen_salt('bf', 12)), 'operator', TRUE),")
     add("  (3, 1, 'consulta', 'Consulta / Auditoría', NULL,")

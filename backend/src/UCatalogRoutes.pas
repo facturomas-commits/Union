@@ -437,6 +437,9 @@ begin
 
     if LUsername.IsEmpty or LFullName.IsEmpty or LPassword.IsEmpty then
     begin SendError(Res, 'Usuario, nombre y contraseña son obligatorios', 400); Exit; end;
+    if (Length(LPassword) < 10) or SameText(LPassword, 'Admin123!') or
+       SameText(LPassword, 'Operador123!') or SameText(LPassword, 'Consulta123!') then
+    begin SendError(Res, 'La contraseña debe tener al menos 10 caracteres y no ser una clave por defecto', 400); Exit; end;
     if not ValidRole(LRole) then
     begin SendError(Res, 'Rol inválido', 400); Exit; end;
     if (LRole = 'superadmin') and not GAuth.IsSuper then
@@ -488,6 +491,8 @@ begin
     begin SendError(Res, 'Usuario no encontrado', 404); Exit; end;
     if (not GAuth.IsSuper) and (LTargetCompany <> LCompany) then
     begin SendError(Res, 'Usuario no encontrado', 404); Exit; end;
+    if (LTargetRole = 'superadmin') and (not GAuth.IsSuper) then
+    begin SendError(Res, 'Solo el superadministrador puede modificar ese usuario', 403); Exit; end;
 
     if Has(LBody, 'role') then
     begin
@@ -506,9 +511,12 @@ begin
     LPassword := GetStr(LBody, 'password');
     if not LPassword.IsEmpty then
     begin
-      if Length(LPassword) < 8 then begin SendError(Res, 'La contraseña debe tener al menos 8 caracteres', 400); Exit; end;
+      if (Length(LPassword) < 10) or SameText(LPassword, 'Admin123!') or
+         SameText(LPassword, 'Operador123!') or SameText(LPassword, 'Consulta123!') then
+      begin SendError(Res, 'La contraseña debe tener al menos 10 caracteres y no ser una clave por defecto', 400); Exit; end;
       LHash := TDB.Q('select crypt(:p0, gen_salt(''bf'', 12))', [LPassword]);
-      TDB.Exec('update users set password_hash = :p0, must_change_password = false where id = :p1', [LHash, LId]);
+      TDB.Exec('update users set password_hash = :p0, must_change_password = true where id = :p1', [LHash, LId]);
+      TDB.Exec('delete from sessions where user_id = :p0', [LId]);
     end;
 
     LHasModules := Has(LBody, 'allowed_modules');
@@ -541,12 +549,15 @@ begin
 end;
 
 procedure DeleteUser(Req: THorseRequest; Res: THorseResponse; Next: TProc);
-var LErr: string; LId: Integer;
+var LErr, LTargetRole: string; LId: Integer;
 begin
   if not RequireAdmin(Res) then Exit;
   LId := StrToIntDef(ParamValue(Req, 'id', '0'), 0);
   if LId = GAuth.UserId then
   begin SendError(Res, 'No puede eliminar su propio usuario', 400); Exit; end;
+  LTargetRole := TDB.Q('select role from users where id = :p0', [LId]);
+  if (LTargetRole = 'superadmin') and (not GAuth.IsSuper) then
+  begin SendError(Res, 'Solo el superadministrador puede eliminar ese usuario', 403); Exit; end;
   if DeleteRow('users', 'user', LId, IfThen(GAuth.IsSuper, 0, EffectiveCompany(Req)), False, LErr) then
     SendDeleted(Res)
   else
@@ -618,6 +629,7 @@ end;
 
 procedure GetSettings(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 begin
+  if not RequireAdmin(Res) then Exit;
   SendList(Res,
     'select coalesce(json_object_agg(key, value), ''{}''::json) from settings where company_id = :p0',
     [EffectiveCompany(Req)]);

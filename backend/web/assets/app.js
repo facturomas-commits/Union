@@ -1,7 +1,7 @@
 import { api, ApiError } from './api.js';
 import { state, canWrite, isAdmin, isSuper, hasModule, canSeeMoney } from './store.js';
 import { VIEW_MODULE, MODULES, defaultModules } from './modules.js';
-import { icon, initials, roleLabel, toast, openModal, formData, decorateTables } from './ui.js';
+import { icon, initials, roleLabel, toast, openModal, formData, decorateTables, esc } from './ui.js';
 import { renderLogin } from './views/login.js';
 
 import dashboard from './views/dashboard.js';
@@ -91,7 +91,7 @@ function shell(current){
         <div class="topbar-right">
           <span class="pill"><span class="dot"></span>${c.name || 'Empresa'}</span>
           <span class="pill">${new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'})}</span>
-          ${u.must_change_password ? `<button class="btn btn-sm btn-secondary" id="btn-pass">${icon('lock')} Cambiar clave</button>` : ''}
+          <button class="icon-btn" id="btn-pass" title="Cambiar contraseña" aria-label="Cambiar contraseña">${icon('lock')}</button>
           <button class="icon-btn" id="btn-refresh" title="Actualizar" style="color:var(--muted)">${icon('refresh')}</button>
         </div>
       </header>
@@ -127,6 +127,10 @@ async function renderCurrent(){
   }
   const content=document.getElementById('view');
   content.innerHTML='';
+  if (state.user && state.user.must_change_password){
+    renderPasswordChange(content);
+    return;
+  }
   if (id==='no-access'){
     document.getElementById('ptitle').textContent='Acceso restringido';
     document.getElementById('psub').textContent='Sin módulos asignados';
@@ -187,15 +191,51 @@ function bindShell(){
   if (pass) pass.onclick=changePassword;
 }
 
+function renderPasswordChange(content){
+  document.getElementById('ptitle').textContent='Cambiar contraseña';
+  document.getElementById('psub').textContent='Actualizá la clave inicial para continuar';
+  document.title='Cambiar contraseña · UNION';
+  content.innerHTML=`<div class="card" style="max-width:520px;margin:40px auto">
+    <div class="card-head"><h3>Cambiar contraseña</h3><span class="hint">Obligatorio</span></div>
+    <div class="card-body">
+      <p class="muted" style="font-size:13px;margin:0 0 16px">Por seguridad, antes de usar el sistema tenés que reemplazar la contraseña inicial. Mínimo 10 caracteres.</p>
+      <div class="form-error" id="force-pass-error"></div>
+      <form id="force-pass-form" novalidate>
+        <div class="field"><label>Contraseña actual</label><input name="current_password" type="password" autocomplete="current-password" required></div>
+        <div class="field" style="margin-top:12px"><label>Nueva contraseña</label><input name="new_password" type="password" autocomplete="new-password" minlength="10" required></div>
+        <div class="field" style="margin-top:12px"><label>Repetir nueva contraseña</label><input name="repeat_password" type="password" autocomplete="new-password" minlength="10" required></div>
+        <button class="btn" type="submit" style="width:100%;margin-top:16px">Actualizar contraseña</button>
+      </form>
+    </div>
+  </div>`;
+  const form=content.querySelector('#force-pass-form');
+  const err=content.querySelector('#force-pass-error');
+  form.onsubmit=async(e)=>{
+    e.preventDefault();
+    err.classList.remove('show');
+    const d=formData(form);
+    if (d.new_password !== d.repeat_password){ err.textContent='Las contraseñas no coinciden'; err.classList.add('show'); return; }
+    try{
+      await api.post('/auth/change-password',{current_password:d.current_password,new_password:d.new_password});
+      state.user.must_change_password=false;
+      toast('Contraseña actualizada','ok');
+      await renderCurrent();
+    }catch(ex){
+      err.textContent=ex.message||'No se pudo cambiar la contraseña';
+      err.classList.add('show');
+    }
+  };
+}
+
 function changePassword(){
   openModal({
     title:'Cambiar contraseña',
-    subtitle:'Mínimo 8 caracteres.',
+    subtitle:'Mínimo 10 caracteres. No uses una clave por defecto.',
     submitText:'Actualizar',
     body:`
       <div class="field"><label>Contraseña actual</label><input name="current_password" type="password" required></div>
-      <div class="field" style="margin-top:12px"><label>Nueva contraseña</label><input name="new_password" type="password" minlength="8" required></div>
-      <div class="field" style="margin-top:12px"><label>Repetir nueva contraseña</label><input name="repeat_password" type="password" minlength="8" required></div>`,
+      <div class="field" style="margin-top:12px"><label>Nueva contraseña</label><input name="new_password" type="password" minlength="10" required></div>
+      <div class="field" style="margin-top:12px"><label>Repetir nueva contraseña</label><input name="repeat_password" type="password" minlength="10" required></div>`,
     onSubmit: async (form, close)=>{
       const d=formData(form);
       if (d.new_password !== d.repeat_password) throw new Error('Las contraseñas no coinciden');
@@ -252,12 +292,15 @@ async function boot(){
     state.settings=me.settings||{};
     state.modules=me.modules||[];
     state.canViewFinancials=me.can_view_financials===true;
-    try{ state.latest=await api.latest(); }catch(e){ state.latest=null; }
+    if (state.user && !state.user.must_change_password){
+      try{ state.latest=await api.latest(); }catch(e){ state.latest=null; }
+    } else state.latest=null;
     if (!location.hash) history.replaceState(null,'','#/dashboard');
     await renderCurrent();
   }catch(ex){
     if (ex instanceof ApiError && ex.unauthorized){ showLogin(); return; }
-    document.getElementById('app').innerHTML=`<div class="card" style="max-width:620px;margin:60px auto"><div class="empty"><strong>No se pudo iniciar el sistema</strong><span>${ex.message||ex}</span><br><br><button class="btn" onclick="location.reload()">Reintentar</button></div></div>`;
+    document.getElementById('app').innerHTML=`<div class="card" style="max-width:620px;margin:60px auto"><div class="empty"><strong>No se pudo iniciar el sistema</strong><span>${esc(ex.message||ex)}</span><br><br><button class="btn" id="boot-retry">Reintentar</button></div></div>`;
+    document.getElementById('boot-retry').onclick=()=>location.reload();
   }
 }
 

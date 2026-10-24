@@ -13,6 +13,7 @@ type
     class var FDbName: string;
     class var FDbUser: string;
     class var FDbPassword: string;
+    class var FServerHost: string;
     class var FServerPort: Integer;
     class var FWebDir: string;
     class var FLogDir: string;
@@ -27,6 +28,7 @@ type
     class property DbName: string read FDbName;
     class property DbUser: string read FDbUser;
     class property DbPassword: string read FDbPassword;
+    class property ServerHost: string read FServerHost;
     class property ServerPort: Integer read FServerPort;
     class property WebDir: string read FWebDir;
     class property LogDir: string read FLogDir;
@@ -67,6 +69,7 @@ begin
   FDbName     := Env('UNION_PG_DATABASE', 'union_transporte');
   FDbUser     := Env('UNION_PG_USER', 'postgres');
   FDbPassword := Env('UNION_PG_PASSWORD', 'postgres');
+  FServerHost := Env('UNION_HOST', '127.0.0.1');
   FServerPort := StrToIntDef(Env('UNION_PORT', '9020'), 9020);
   FWebDir     := ResolveWebDir;
   FLogDir     := TPath.Combine(ExtractFilePath(ParamStr(0)), 'logs');

@@ -73,13 +73,13 @@ Abrir: **http://localhost:9020**
 
 ### Usuarios iniciales
 
-| Usuario | Clave | Rol |
-|---|---|---|
-| `admin` | `Admin123!` | Superadmin |
-| `operador` | `Operador123!` | Operador |
-| `consulta` | `Consulta123!` | Consulta (solo lectura) |
+| Usuario | Rol |
+|---|---|
+| `admin` | Superadmin |
+| `operador` | Operador |
+| `consulta` | Consulta (solo lectura) |
 
-> Cambie las claves al primer uso. `operador` y `consulta` están marcados para cambio de clave.
+> Las claves iniciales se definen en `db/seed.sql` **solo para instalación local**. Antes de exponer el sistema por Cloudflare, cambie la clave de `admin` y de todos los usuarios. El sistema obliga a cambiar la clave cuando el usuario tiene `must_change_password = TRUE` y exige un mínimo de 10 caracteres.
 
 ---
 
@@ -89,6 +89,7 @@ Variables de entorno (todas opcionales):
 
 | Variable | Default | Descripción |
 |---|---|---|
+| `UNION_HOST` | `127.0.0.1` | Interfaz donde escucha el backend. Dejar localhost y publicar solo por Cloudflared. |
 | `UNION_PG_HOST` | `localhost` | Host PostgreSQL |
 | `UNION_PG_PORT` | `5432` | Puerto PostgreSQL |
 | `UNION_PG_DATABASE` | `union_transporte` | Base |
@@ -100,6 +101,18 @@ Variables de entorno (todas opcionales):
 | `UNION_WEB_DIR` | `exe\web` o `backend\web` | Carpeta de la SPA |
 
 Configuración funcional por empresa en **Maestros → Configuración**: días de alerta de mantenimiento, IVA %, comisión % y nombre comercial.
+
+### Seguridad y Cloudflared
+
+- El backend escucha por defecto en **127.0.0.1:9020**. No abrir el puerto en el router ni en el firewall; solo Cloudflared debe llegar a él.
+- Cloudflared debe apuntar a `http://127.0.0.1:9020`.
+- Usar HTTPS en Cloudflare, activar **Always Use HTTPS**, WAF y rate limiting para `/api/auth/login`.
+- Las sesiones usan cookie `HttpOnly`, `SameSite=Lax` y `Secure` cuando Cloudflare informa HTTPS. El token no se devuelve al JavaScript.
+- Cambio de clave obligatorio para usuarios marcados, mínimo 10 caracteres; al cambiarla se cierran las demás sesiones.
+- Bloqueo temporal tras 10 intentos fallidos por usuario/IP en 15 minutos.
+- No exponer PostgreSQL a Internet. Usar una clave distinta de `postgres` y escuchar solo en localhost.
+- Revisar los logs y la auditoría. Para mayor protección, se puede poner **Cloudflare Access** delante del panel.
+- Detalle completo en [`docs/seguridad.md`](docs/seguridad.md).
 
 ---
 
@@ -124,6 +137,7 @@ Union/
   docs/
     modelo-datos.md
     reportes.md
+    seguridad.md
     api.md
     planilla-a-sistema.md
     permisos.md

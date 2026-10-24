@@ -31,6 +31,16 @@ begin
   Res.RawWebResponse.SetCustomHeader('X-Content-Type-Options', 'nosniff');
   Res.RawWebResponse.SetCustomHeader('X-Frame-Options', 'DENY');
   Res.RawWebResponse.SetCustomHeader('Referrer-Policy', 'same-origin');
+  Res.RawWebResponse.SetCustomHeader('Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()');
+  Res.RawWebResponse.SetCustomHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  Res.RawWebResponse.SetCustomHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  Res.RawWebResponse.SetCustomHeader('Content-Security-Policy',
+    'default-src ''self''; script-src ''self''; style-src ''self'' ''unsafe-inline''; ' +
+    'img-src ''self'' data:; font-src ''self''; connect-src ''self''; ' +
+    'object-src ''none''; base-uri ''self''; form-action ''self''; frame-ancestors ''none''');
+  Res.RawWebResponse.SetCustomHeader('Strict-Transport-Security',
+    'max-age=31536000');
 end;
 
 procedure ServeIndex(Req: THorseRequest; Res: THorseResponse; Next: TProc);

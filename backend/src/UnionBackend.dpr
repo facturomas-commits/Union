@@ -25,12 +25,12 @@ begin
 
     THorse.OnListen := procedure(AHorse: THorse)
     begin
-      WriteLn('UNION Backend escuchando en http://localhost:' + LPort.ToString);
-      WriteLn('Web: http://localhost:' + LPort.ToString + '/');
-      LogInfo('Servidor escuchando en el puerto ' + LPort.ToString);
+      WriteLn('UNION Backend escuchando en http://' + TConfig.ServerHost + ':' + LPort.ToString);
+      WriteLn('Web: http://' + TConfig.ServerHost + ':' + LPort.ToString + '/');
+      LogInfo('Servidor escuchando en ' + TConfig.ServerHost + ':' + LPort.ToString);
     end;
 
-    THorse.Listen(LPort);
+    THorse.Listen(LPort, TConfig.ServerHost);
   except
     on E: Exception do
     begin

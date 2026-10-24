@@ -1,4 +1,4 @@
-unit UApi;
+﻿unit UApi;
 
 interface
 
@@ -443,6 +443,7 @@ end;
 
 procedure SendCsv(Res: THorseResponse; const AFileName, AContent: string);
 begin
+  Res.RawWebResponse.SetCustomHeader('Cache-Control', 'no-store');
   Res.Status(200)
      .ContentType('text/csv; charset=utf-8')
      .RawWebResponse.SetCustomHeader('Content-Disposition',

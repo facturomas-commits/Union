@@ -16,7 +16,7 @@ INSERT INTO companies (id, name, legal_name, cuit, address, phone, email) VALUES
 -- Usuarios (cambiar claves al primer ingreso)
 INSERT INTO users (id, company_id, username, full_name, email, password_hash, role, must_change_password) VALUES
   (1, 1, 'admin', 'Administrador', NULL,
-   crypt('Admin123!', gen_salt('bf', 12)), 'superadmin', FALSE),
+   crypt('Admin123!', gen_salt('bf', 12)), 'superadmin', TRUE),
   (2, 1, 'operador', 'Operador de Tráfico', NULL,
    crypt('Operador123!', gen_salt('bf', 12)), 'operator', TRUE),
   (3, 1, 'consulta', 'Consulta / Auditoría', NULL,

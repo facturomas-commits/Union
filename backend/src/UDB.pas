@@ -305,9 +305,15 @@ begin
     Exit;
   end;
 
-  GRequestIP := Req.RawWebRequest.RemoteIP;
-  if GRequestIP.Trim.IsEmpty then
-    GRequestIP := Req.Headers['X-Forwarded-For'];
+  GRequestIP := Req.RawWebRequest.RemoteIP.Trim;
+  if (GRequestIP = '127.0.0.1') or (GRequestIP = '::1') then
+  begin
+    GRequestIP := Req.Headers['CF-Connecting-IP'].Trim;
+    if GRequestIP.IsEmpty then
+      GRequestIP := Req.Headers['X-Forwarded-For'].Trim;
+    if Pos(',', GRequestIP) > 0 then
+      GRequestIP := Copy(GRequestIP, 1, Pos(',', GRequestIP) - 1).Trim;
+  end;
   GRequestIP := Copy(GRequestIP, 1, 60);
 
   LWatch := TStopwatch.StartNew;

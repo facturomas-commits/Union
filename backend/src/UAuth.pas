@@ -46,7 +46,7 @@ function BodyCompany(Req: THorseRequest; AObj: TJSONObject): Integer;
 
 procedure AuditAction(const AAction, AEntity: string; AEntityId: Integer;
   const ADetails: string = '');
-procedure AuditLoginFailure(const AUsername, ADetails: string);
+procedure AuditLoginFailure(const AUsername, ADetails, AIP: string);
 function TokenFromRequest(Req: THorseRequest): string;
 
 implementation
@@ -156,17 +156,23 @@ begin
     FormatDateTime('yyyymmddhhnnsszzz', Now));
 end;
 
-procedure SetSessionCookie(Res: THorseResponse; const AToken: string);
+procedure SetSessionCookie(Res: THorseResponse; const AToken: string; ASecure: Boolean);
+var
+  LSecure: string;
 begin
+  if ASecure then LSecure := '; Secure' else LSecure := '';
   Res.RawWebResponse.SetCustomHeader('Set-Cookie',
-    'union_session=' + AToken + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' +
-    IntToStr(TConfig.SessionHours * 3600));
+    'union_session=' + AToken + '; Path=/; HttpOnly; SameSite=Lax' + LSecure +
+    '; Max-Age=' + IntToStr(TConfig.SessionHours * 3600));
 end;
 
-procedure ClearSessionCookie(Res: THorseResponse);
+procedure ClearSessionCookie(Res: THorseResponse; ASecure: Boolean);
+var
+  LSecure: string;
 begin
+  if ASecure then LSecure := '; Secure' else LSecure := '';
   Res.RawWebResponse.SetCustomHeader('Set-Cookie',
-    'union_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+    'union_session=; Path=/; HttpOnly; SameSite=Lax' + LSecure + '; Max-Age=0');
 end;
 
 function TokenFromRequest(Req: THorseRequest): string;
@@ -185,6 +191,59 @@ begin
   except
     Result := '';
   end;
+end;
+
+function ClientIP(Req: THorseRequest): string;
+var
+  LRemote: string;
+  LComma: Integer;
+begin
+  LRemote := Req.RawWebRequest.RemoteIP.Trim;
+  if (LRemote = '127.0.0.1') or (LRemote = '::1') then
+  begin
+    Result := Req.Headers['CF-Connecting-IP'].Trim;
+    if Result.IsEmpty then
+      Result := Req.Headers['X-Forwarded-For'].Trim;
+  end
+  else
+    Result := LRemote;
+
+  LComma := Pos(',', Result);
+  if LComma > 0 then Result := Copy(Result, 1, LComma - 1).Trim;
+  Result := Copy(Result, 1, 60);
+end;
+
+function IsHttpsRequest(Req: THorseRequest): Boolean;
+var
+  LProto, LVisitor: string;
+begin
+  LProto := Req.Headers['X-Forwarded-Proto'].ToLower;
+  LVisitor := Req.Headers['CF-Visitor'].ToLower;
+  Result := (LProto = 'https') or (Pos('"https"', LVisitor) > 0) or
+            (Pos('https', LVisitor) > 0);
+end;
+
+function ValidNewPassword(const AValue: string): Boolean;
+begin
+  Result := Length(AValue) >= 10;
+  if not Result then Exit;
+  if SameText(AValue, 'Admin123!') or SameText(AValue, 'Operador123!') or
+     SameText(AValue, 'Consulta123!') or SameText(AValue, 'password') or
+     SameText(AValue, '1234567890') then
+    Result := False;
+end;
+
+function SameOriginRequest(Req: THorseRequest): Boolean;
+var
+  LOrigin, LHost: string;
+begin
+  LOrigin := Req.Headers['Origin'].Trim;
+  if LOrigin.IsEmpty then
+    Exit(True);
+  LHost := Req.Headers['Host'].Trim;
+  if LHost.IsEmpty then
+    LHost := Req.Headers['X-Forwarded-Host'].Trim;
+  Result := LOrigin.ToLower.EndsWith('://' + LHost.ToLower);
 end;
 
 function ModulesAsJson: TJSONArray;
@@ -410,6 +469,25 @@ begin
   try
     GAuth := Default(TAuthInfo);
     FillAuthFromJson(TJSONObject(LValue));
+
+    if (Req.RawWebRequest.Method <> 'GET') and
+       (Req.RawWebRequest.Method <> 'HEAD') and
+       (Req.RawWebRequest.Method <> 'OPTIONS') and
+       (not SameOriginRequest(Req)) then
+    begin
+      SendError(Res, 'Origen no permitido', 403);
+      raise EHorseCallbackInterrupted.Create;
+    end;
+
+    if GAuth.MustChangePassword and
+       (LPath <> '/api/auth/me') and
+       (LPath <> '/api/auth/change-password') and
+       (LPath <> '/api/auth/logout') then
+    begin
+      SendError(Res, 'Debe cambiar la contraseña inicial antes de continuar', 403);
+      raise EHorseCallbackInterrupted.Create;
+    end;
+
     if not PathModuleAllowed(LPath, Req.RawWebRequest.Method) then
     begin
       SendError(Res, 'No tiene acceso a este módulo', 403);
@@ -444,6 +522,11 @@ begin
   LBody := nil;
   LValue := nil;
   try
+    if not SameOriginRequest(Req) then
+    begin
+      SendError(Res, 'Origen no permitido', 403);
+      Exit;
+    end;
     if not ParseBodyObject(Req, LBody, LErr) then
     begin
       SendError(Res, LErr, 400);
@@ -452,9 +535,20 @@ begin
 
     LUsername := GetStr(LBody, 'username').Trim;
     LPassword := GetStr(LBody, 'password');
+    LIP := ClientIP(Req);
     if LUsername.IsEmpty or LPassword.IsEmpty then
     begin
       SendError(Res, 'Usuario y contraseña son obligatorios', 400);
+      Exit;
+    end;
+
+    if TDB.QInt(
+      'select count(*) from audit_log where action = ''login_failed'' ' +
+      'and created_at > now() - interval ''15 minutes'' ' +
+      'and (username = :p0 or ip = :p1)', [LUsername, LIP]) >= 10 then
+    begin
+      Res.RawWebResponse.SetCustomHeader('Retry-After', '900');
+      SendError(Res, 'Demasiados intentos. Intente nuevamente en 15 minutos.', 429);
       Exit;
     end;
 
@@ -471,7 +565,7 @@ begin
 
     if LJson.Trim.IsEmpty then
     begin
-      AuditLoginFailure(LUsername, '{"reason":"invalid_credentials"}');
+      AuditLoginFailure(LUsername, '{"reason":"invalid_credentials"}', LIP);
       SendError(Res, 'Usuario o contraseña incorrectos', 401);
       Exit;
     end;
@@ -489,10 +583,10 @@ begin
 
     LToken := NewSessionToken;
     LHash := Sha256Hex(LToken);
-    LIP := Copy(Req.RawWebRequest.RemoteIP, 1, 60);
     LUA := Copy(Req.Headers['User-Agent'], 1, 255);
     LSeconds := TConfig.SessionHours * 3600;
 
+    TDB.Exec('delete from sessions where expires_at < now()', []);
     TDB.Exec(
       'insert into sessions (token_hash, user_id, expires_at, ip, user_agent) ' +
       'values (:p0, :p1, now() + make_interval(hours => :p2), :p3, :p4)',
@@ -503,13 +597,12 @@ begin
 
     LResp := TJSONObject.Create;
     try
-      LResp.AddPair('token', LToken);
       LResp.AddPair('expires_in', TJSONNumber.Create(LSeconds));
       LResp.AddPair('user', TJSONObject(LValue.Clone));
       LResp.AddPair('must_change_password', TJSONBool.Create(GAuth.MustChangePassword));
       LResp.AddPair('modules', ModulesAsJson);
       LResp.AddPair('can_view_financials', TJSONBool.Create(GAuth.CanViewFinancials));
-      SetSessionCookie(Res, LToken);
+      SetSessionCookie(Res, LToken, IsHttpsRequest(Req));
       SendJsonText(Res, LResp.ToJSON, 200);
     finally
       LResp.Free;
@@ -534,7 +627,7 @@ begin
     if not LToken.IsEmpty then
       TDB.Exec('delete from sessions where token_hash = :p0', [Sha256Hex(LToken)]);
     AuditAction('logout', 'session', 0, '{}');
-    ClearSessionCookie(Res);
+    ClearSessionCookie(Res, IsHttpsRequest(Req));
     SendOk(Res);
   except
     on E: Exception do
@@ -574,7 +667,7 @@ end;
 procedure ChangePasswordHandler(Req: THorseRequest; Res: THorseResponse; Next: TProc);
 var
   LBody: TJSONObject;
-  LErr, LCurrent, LNew: string;
+  LErr, LCurrent, LNew, LToken, LHash: string;
   LOk: Boolean;
 begin
   LBody := nil;
@@ -587,9 +680,9 @@ begin
 
     LCurrent := GetStr(LBody, 'current_password');
     LNew := GetStr(LBody, 'new_password');
-    if Length(LNew) < 8 then
+    if not ValidNewPassword(LNew) then
     begin
-      SendError(Res, 'La nueva contraseña debe tener al menos 8 caracteres', 400);
+      SendError(Res, 'La nueva contraseña debe tener al menos 10 caracteres y no ser una clave por defecto', 400);
       Exit;
     end;
 
@@ -606,6 +699,15 @@ begin
       'update users set password_hash = crypt(:p0, gen_salt(''bf'', 12)), ' +
       'must_change_password = false where id = :p1',
       [LNew, GAuth.UserId]);
+
+    LToken := TokenFromRequest(Req);
+    if not LToken.IsEmpty then
+    begin
+      LHash := Sha256Hex(LToken);
+      TDB.Exec('delete from sessions where user_id = :p0 and token_hash <> :p1',
+        [GAuth.UserId, LHash]);
+    end;
+
     AuditAction('change_password', 'user', GAuth.UserId, '{}');
     SendOk(Res);
   except
@@ -702,13 +804,13 @@ begin
   end;
 end;
 
-procedure AuditLoginFailure(const AUsername, ADetails: string);
+procedure AuditLoginFailure(const AUsername, ADetails, AIP: string);
 begin
   try
     TDB.Exec(
       'insert into audit_log (company_id, user_id, username, action, entity, entity_id, details, ip) ' +
       'values (NULL, NULL, :p0, ''login_failed'', ''session'', NULL, :p1::jsonb, :p2)',
-      [AUsername, ADetails, GRequestIP]);
+      [AUsername, ADetails, AIP]);
   except
     on E: Exception do
       LogError('audit login: ' + E.Message);

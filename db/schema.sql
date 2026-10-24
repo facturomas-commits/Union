@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_company_date ON audit_log(company_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_login_user ON audit_log(username, created_at DESC) WHERE action = 'login_failed';
+CREATE INDEX IF NOT EXISTS idx_audit_login_ip ON audit_log(ip, created_at DESC) WHERE action = 'login_failed';
 
 CREATE TABLE IF NOT EXISTS settings (
   company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

@@ -27,7 +27,7 @@ export function renderLogin(root, onSuccess){
         <form id="login-form" novalidate>
           <div class="field" style="margin-bottom:12px">
             <label for="lu">Usuario</label>
-            <input id="lu" name="username" autocomplete="username" placeholder="admin" required>
+            <input id="lu" name="username" autocomplete="username" placeholder="Usuario" required>
           </div>
           <div class="field" style="margin-bottom:16px">
             <label for="lp">Contraseña</label>
@@ -35,9 +35,6 @@ export function renderLogin(root, onSuccess){
           </div>
           <button class="btn" type="submit" style="width:100%;height:42px" id="login-btn">${icon('lock')} Ingresar</button>
         </form>
-        <div class="demo-box">
-          <b>Demo:</b> admin / Admin123! &nbsp;·&nbsp; operador / Operador123! &nbsp;·&nbsp; consulta / Consulta123!
-        </div>
       </div>
     </section>
   </div>`;

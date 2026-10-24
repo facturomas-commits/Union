@@ -2,19 +2,21 @@
 
 Base: `http://localhost:9020/api`
 
-Autenticación por cookie `union_session` (HttpOnly) o cabecera `Authorization: Bearer <token>`.
-Todas las respuestas son JSON. Errores: `{ "error": "mensaje" }`.
+Autenticación por cookie `union_session` (`HttpOnly`, `SameSite=Lax`, `Secure` cuando la request llega por HTTPS) o cabecera `Authorization: Bearer <token>` para integraciones que obtengan un token por otro canal.
+Todas las respuestas son JSON. Errores: `{ "error": "mensaje" }`. Las respuestas de API usan `Cache-Control: no-store`.
 
 ## Autenticación
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/auth/login` | `{username, password}` → token, usuario, `modules` y `can_view_financials` |
+| POST | `/auth/login` | `{username, password}` → usuario, `modules` y `can_view_financials`; setea cookie de sesión |
 | POST | `/auth/logout` | Cierra sesión |
 | GET | `/auth/me` | Usuario, empresa, configuración, `modules` y `can_view_financials` |
 | POST | `/auth/change-password` | `{current_password, new_password}` |
 
 Los endpoints de cada módulo verifican `allowed_modules`. Si el módulo no está permitido, responden **403**.
+
+`/auth/login` responde **429** con `Retry-After: 900` después de 10 fallos por usuario/IP en 15 minutos. Si el usuario tiene `must_change_password = TRUE`, el resto de los endpoints responde **403** hasta que use `/auth/change-password`; la nueva clave debe tener al menos 10 caracteres y no ser una clave por defecto.
 
 ## Maestros
 

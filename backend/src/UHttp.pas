@@ -53,6 +53,7 @@ end;
 
 procedure SendJsonText(Res: THorseResponse; const AJson: string; AStatus: Integer);
 begin
+  Res.RawWebResponse.SetCustomHeader('Cache-Control', 'no-store');
   Res.Status(AStatus)
      .ContentType('application/json; charset=utf-8')
      .Send(AJson);
